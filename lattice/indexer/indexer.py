@@ -116,19 +116,37 @@ def index_file(vault: Any, file_path: str, repo_root: str, pending_edges: list[d
         return
 
     from lattice.retrieval.semantic import SemanticSearchStrategy
+    from lattice.retrieval.contextual import contextualize_chunk
+    from lattice.retrieval.doc2query import generate_queries
+    from lattice.retrieval.colbert import embed_and_store_colbert
+    
     semantic = SemanticSearchStrategy(vault.db)
+    file_context = source[:300]
 
     for chunk in chunks:
+        # Contextual retrieval: prepend context summary if enabled
+        contextualized_body = contextualize_chunk(file_path, chunk.body, file_context)
+        
+        # Doc2Query: generate expansion queries if enabled
+        queries = generate_queries(chunk.body, chunk.heading)
+        expansion_queries_str = "\n".join(queries) if queries else None
+
         vault.db.execute('''
-            INSERT INTO chunks (id, heading, body, source, path, tags, created_at, last_seen_at, last_validated_at)
-            VALUES (?, ?, ?, 'code_index', ?, '', ?, ?, ?)
+            INSERT INTO chunks (id, heading, body, source, path, tags, created_at, last_seen_at, last_validated_at, expansion_queries)
+            VALUES (?, ?, ?, 'code_index', ?, '', ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 body = excluded.body,
                 heading = excluded.heading,
                 last_seen_at = excluded.last_seen_at,
-                last_validated_at = excluded.last_validated_at
-        ''', (chunk.id, chunk.heading, chunk.body, file_path, now, now, now))
-        semantic.embed_and_store(chunk.id, f'{chunk.heading}\n{chunk.body[:512]}')
+                last_validated_at = excluded.last_validated_at,
+                expansion_queries = excluded.expansion_queries
+        ''', (chunk.id, chunk.heading, contextualized_body, file_path, now, now, now, expansion_queries_str))
+        
+        # Semantic embedding uses contextualized body
+        semantic.embed_and_store(chunk.id, f'{chunk.heading}\n{contextualized_body[:512]}')
+        
+        # Colbert embedding if enabled
+        embed_and_store_colbert(vault.db, chunk.id, f'{chunk.heading}\n{contextualized_body[:512]}')
 
     # Store export symbols and collect edges
     raw_edges = extract_edges(file_path, source)
@@ -210,6 +228,14 @@ def reindex_repo(vault: Any, repo_root: str) -> None:
     pending_edges = []
     for file_path in files_to_index:
         index_file(vault, file_path, repo_root, pending_edges)
+        
+    # Resolve and write edges
+    from lattice.indexer.graph import resolve_and_write_edges
+    for pending in pending_edges:
+        try:
+            resolve_and_write_edges(vault, pending['chunk_id'], pending['file_path'], pending['raw_edges'], repo_root)
+        except Exception:
+            pass
         
     vault.db.commit()
 
