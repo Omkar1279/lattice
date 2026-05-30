@@ -140,4 +140,35 @@ def handle_recall_expand(vault: Any, args: Dict[str, Any]) -> str:
     else:
         data = expand_structural(vault, chunk['id'], parsed.mode, parsed.budget_tokens, parsed.offset)
         
+    # Save recalled/expanded chunk IDs to .lattice/session_recalled.json
+    try:
+        from pathlib import Path
+        session_file = Path(os.environ.get('LATTICE_VAULT_DIR', '.lattice')) / 'session_recalled.json'
+        session_file.parent.mkdir(parents=True, exist_ok=True)
+        recalled = []
+        if session_file.exists():
+            try:
+                recalled = json.loads(session_file.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+        
+        # Add primary chunk
+        recalled.append({'id': chunk['id'], 'heading': chunk['heading']})
+        
+        # Add structural results if any
+        if parsed.mode != 'body' and 'results' in data:
+            for r in data['results']:
+                recalled.append({'id': r['chunk_id'], 'heading': r['heading']})
+                
+        # Remove duplicates
+        seen = set()
+        unique = []
+        for item in recalled:
+            if item['id'] not in seen:
+                seen.add(item['id'])
+                unique.append(item)
+        session_file.write_text(json.dumps(unique), encoding='utf-8')
+    except Exception:
+        pass
+
     return json.dumps(data, indent=2)

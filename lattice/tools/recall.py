@@ -99,4 +99,29 @@ def handle_recall(vault: Any, args: Dict[str, Any]) -> str:
             kind=parsed.kind
         ))
 
+    # Save recalled chunk IDs to .lattice/session_recalled.json
+    try:
+        from pathlib import Path
+        import os
+        session_file = Path(os.environ.get('LATTICE_VAULT_DIR', '.lattice')) / 'session_recalled.json'
+        session_file.parent.mkdir(parents=True, exist_ok=True)
+        recalled = []
+        if session_file.exists():
+            try:
+                recalled = json.loads(session_file.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+        for r in response['results']:
+            recalled.append({'id': r['id'], 'heading': r['heading']})
+        # Remove duplicates
+        seen = set()
+        unique = []
+        for item in recalled:
+            if item['id'] not in seen:
+                seen.add(item['id'])
+                unique.append(item)
+        session_file.write_text(json.dumps(unique), encoding='utf-8')
+    except Exception:
+        pass
+
     return json.dumps(response, indent=2)

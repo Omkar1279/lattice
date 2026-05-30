@@ -10,14 +10,43 @@ TOKEN_THRESHOLD = 1000
 EDIT_TOOLS = {'Edit', 'Write', 'MultiEdit'}
 READ_TOOLS = {'Read', 'Grep', 'Bash', 'Cat'}
 
+def track_quoted_chunks(vault_dir: str, payload: str):
+    try:
+        from pathlib import Path
+        session_file = Path(vault_dir) / 'session_recalled.json'
+        if not session_file.exists():
+            return
+            
+        recalled = json.loads(session_file.read_text(encoding='utf-8'))
+        if not recalled:
+            return
+            
+        quoted_ids = set()
+        for item in recalled:
+            cid = item['id']
+            heading = item['heading']
+            if cid in payload or heading in payload:
+                quoted_ids.add(cid)
+                
+        if quoted_ids:
+            quoted_file = Path(vault_dir) / 'quoted.jsonl'
+            now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            with open(quoted_file, 'a', encoding='utf-8') as f:
+                for qid in quoted_ids:
+                    f.write(json.dumps({'chunk_id': qid, 'timestamp': now}) + '\n')
+    except Exception:
+        pass
+
 def handle_post_tool_use(payload: str) -> str:
+    vault_dir = os.environ.get('LATTICE_VAULT_DIR', '.lattice')
+    track_quoted_chunks(vault_dir, payload)
+
     try:
         event = json.loads(payload)
     except Exception:
         return ''
         
     tool_name = event.get('tool_name', '')
-    vault_dir = os.environ.get('LATTICE_VAULT_DIR', '.lattice')
     
     if tool_name in EDIT_TOOLS:
         handle_edit_tool(vault_dir, event)

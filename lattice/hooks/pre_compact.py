@@ -10,10 +10,61 @@ from lattice.util import count_tokens
 MAX_SNAPSHOT_TOKENS = 3000
 
 def handle_pre_compact(payload: str) -> str:
+    vault_dir = os.environ.get('LATTICE_VAULT_DIR', '.lattice')
+    prefetched_context = ''
+    
+    # Process quoted.jsonl to prefetch context
+    try:
+        from collections import Counter
+        quoted_file = Path(vault_dir) / 'quoted.jsonl'
+        if quoted_file.exists():
+            quoted_ids = []
+            with open(quoted_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        record = json.loads(line)
+                        if 'chunk_id' in record:
+                            quoted_ids.append(record['chunk_id'])
+                    except Exception:
+                        pass
+                        
+            if quoted_ids:
+                counts = Counter(quoted_ids)
+                top_k = [item[0] for item in counts.most_common(3)]
+                
+                vault = open_vault(vault_dir)
+                try:
+                    prefetched = []
+                    for cid in top_k:
+                        row = vault.db.execute('SELECT * FROM chunks WHERE id = ?', (cid,)).fetchone()
+                        if row:
+                            prefetched.append(dict(row))
+                            
+                    if prefetched:
+                        active_path = Path(vault_dir) / 'active-work.md'
+                        active_lines = ['# Active Work Context (Prefetched for Compaction)\n']
+                        for p in prefetched:
+                            active_lines.append(f"### Chunk: {p['heading']} (ID: {p['id']})")
+                            active_lines.append(f"Path: {p['path']}\n")
+                            active_lines.append(p['body'])
+                            active_lines.append("\n---\n")
+                        active_path.write_text('\n'.join(active_lines), encoding='utf-8')
+                        
+                        ctx_lines = ['[lattice] Active work context prefetched from previous conversation history:']
+                        for p in prefetched:
+                            ctx_lines.append(f"Heading: {p['heading']} (ID: {p['id']})")
+                            ctx_lines.append(p['body'])
+                            ctx_lines.append('')
+                        prefetched_context = '\n'.join(ctx_lines)
+                finally:
+                    vault.close()
+    except Exception:
+        pass
+
     try:
         transcript = json.loads(payload)
     except Exception:
-        return ''
+        return prefetched_context
         
     messages = []
     if isinstance(transcript, list):
@@ -22,7 +73,7 @@ def handle_pre_compact(payload: str) -> str:
         messages = transcript.get('messages', transcript.get('conversation', []))
         
     if not messages:
-        return ''
+        return prefetched_context
         
     assistant_messages = [m for m in messages if m.get('role') == 'assistant'][-10:]
     if not assistant_messages:
@@ -97,4 +148,4 @@ def handle_pre_compact(payload: str) -> str:
     finally:
         vault.close()
         
-    return ''
+    return prefetched_context

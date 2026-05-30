@@ -37,6 +37,10 @@ _TS_QUERIES = {
           name: (type_identifier) @class_name
           (class_heritage (extends_clause value: (identifier) @parent_name)))
     ''',
+    'references': '''
+        (type_identifier) @ref
+        (property_identifier) @ref
+    ''',
 }
 
 _TS_IMPORT_NAMES = '''
@@ -63,6 +67,9 @@ _JS_QUERIES = {
           name: (identifier) @class_name
           (class_heritage (extends_clause value: (identifier) @parent_name)))
     ''',
+    'references': '''
+        (identifier) @ref
+    ''',
 }
 
 _PY_QUERIES = {
@@ -82,6 +89,9 @@ _PY_QUERIES = {
         (class_definition
           name: (identifier) @class_name
           superclasses: (argument_list (identifier) @parent_name))
+    ''',
+    'references': '''
+        (identifier) @ref
     ''',
 }
 
@@ -108,6 +118,10 @@ _RS_QUERIES = {
           trait: (type_identifier) @interface_name
           type: (type_identifier) @class_name)
     ''',
+    'references': '''
+        (type_identifier) @ref
+        (field_identifier) @ref
+    ''',
 }
 
 _GO_QUERIES = {
@@ -128,6 +142,10 @@ _GO_QUERIES = {
           (type_spec
             name: (type_identifier) @class_name
             type: (struct_type)))
+    ''',
+    'references': '''
+        (type_identifier) @ref
+        (field_identifier) @ref
     ''',
 }
 
@@ -201,12 +219,14 @@ _CAPTURE_KIND = {
     'import_path': 'imports',
     'callee': 'calls',
     'export_name': 'exports',
+    'ref': 'references',
 }
 
 _BASE_CONFIDENCE = {
     'imports': 1.0,
     'exports': 1.0,
     'calls': 0.6,
+    'references': 0.5,
 }
 
 
@@ -358,10 +378,19 @@ def resolve_and_write_edges(
             for target_id in targets:
                 vault.write_edge(source_chunk_id, target_id, "calls", adjusted)
                 
-        elif kind in ("implements", "extends"):
+        elif kind in ("implements", "extends", "inherits"):
             for target_id in find_chunks_by_symbol(target_symbol):
                 if target_id != source_chunk_id:
-                    vault.write_edge(source_chunk_id, target_id, kind, confidence)
+                    vault.write_edge(source_chunk_id, target_id, "inherits", confidence)
+        elif kind == "references":
+            for target_id in find_chunks_by_symbol(target_symbol):
+                if target_id != source_chunk_id:
+                    cursor = db.execute(
+                        "SELECT 1 FROM edges WHERE source_chunk_id = ? AND target_chunk_id = ? AND kind IN ('calls', 'inherits')",
+                        (source_chunk_id, target_id)
+                    )
+                    if not cursor.fetchone():
+                        vault.write_edge(source_chunk_id, target_id, "references", confidence)
 
 def resolve_import_path(from_file: str, import_spec: str, repo_root: str) -> Optional[str]:
     import os

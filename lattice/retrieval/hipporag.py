@@ -12,16 +12,28 @@ def hipporag_retrieve(db: Any, query: str, limit: int) -> List[Chunk]:
     
     seed_ids = {s.id for s in seeds}
     
-    # Step 2: build adjacency from edges table
-    rows = db.execute("SELECT source_chunk_id AS source, target_chunk_id AS target FROM edges WHERE kind IN ('imports', 'calls')").fetchall()
-    edges = [{"source": r["source"], "target": r["target"]} for r in rows]
+    # Step 2: build weighted adjacency from edges table
+    WEIGHTS = {
+        'calls': 1.0,
+        'imports': 0.8,
+        'inherits': 0.9,
+        'references': 0.5,
+        'defines': 1.0
+    }
+    
+    rows = db.execute("SELECT source_chunk_id AS source, target_chunk_id AS target, kind FROM edges WHERE confidence >= 0.5").fetchall()
     
     outgoing = {}
     nodes = set()
-    for e in edges:
-        nodes.add(e["source"])
-        nodes.add(e["target"])
-        outgoing.setdefault(e["source"], []).append(e["target"])
+    for r in rows:
+        src = r["source"]
+        tgt = r["target"]
+        kind = r["kind"]
+        w = WEIGHTS.get(kind, 1.0)
+        
+        nodes.add(src)
+        nodes.add(tgt)
+        outgoing.setdefault(src, []).append((tgt, w))
         
     for id_ in seed_ids:
         nodes.add(id_)
@@ -46,10 +58,12 @@ def hipporag_retrieve(db: Any, query: str, limit: int) -> List[Chunk]:
             neighbors = outgoing.get(node_arr[i])
             if not neighbors:
                 continue
-            share = rank[i] / len(neighbors)
-            for nb in neighbors:
+            total_w = sum(w for _, w in neighbors)
+            if total_w == 0:
+                continue
+            for nb, w in neighbors:
                 if nb in idx:
-                    next_rank[idx[nb]] += share
+                    next_rank[idx[nb]] += rank[i] * (w / total_w)
         rank = alpha * next_rank + (1.0 - alpha) * teleport
         
     # Step 4: sort by rank, fetch chunks

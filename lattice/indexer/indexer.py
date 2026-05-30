@@ -148,9 +148,13 @@ def index_file(vault: Any, file_path: str, repo_root: str, pending_edges: list[d
         # Colbert embedding if enabled
         embed_and_store_colbert(vault.db, chunk.id, f'{chunk.heading}\n{contextualized_body[:512]}')
 
+    # Write structural "defines" edges from the file's primary chunk to all defining sub-chunks
+    primary_chunk_id = chunks[0].id
+    for chunk in chunks[1:]:
+        vault.write_edge(primary_chunk_id, chunk.id, "defines", 1.0)
+
     # Store export symbols and collect edges
     raw_edges = extract_edges(file_path, source)
-    primary_chunk_id = chunks[0].id
 
     for edge in raw_edges:
         if edge['kind'] == 'exports':
