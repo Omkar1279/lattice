@@ -1,0 +1,751 @@
+{
+  "meta": {
+    "date": "2026-05-30T15:16:28.192077Z",
+    "tokenizer_under_test": "tiktoken",
+    "ground_truth_source": "anthropic-api",
+    "model": "claude-opus-4-7",
+    "python": "3.12.11 (main, Sep 29 2025, 14:14:05) [Clang 17.0.0 (clang-1700.0.13.5)]",
+    "platform": "darwin",
+    "sample_count": 30,
+    "baseline": {
+      "text": "x",
+      "local_tokens": 1,
+      "api_input_tokens": 12
+    }
+  },
+  "samples": [
+    {
+      "id": "prose-1",
+      "bucket": "prose",
+      "description": "README justification paragraph",
+      "text_length_chars": 570,
+      "local_tokens": 237,
+      "claude4_tokens": 220,
+      "ratio": 0.9282700421940928,
+      "raw_api_input_tokens": 231
+    },
+    {
+      "id": "prose-2",
+      "bucket": "prose",
+      "description": "Architecture doc opening",
+      "text_length_chars": 364,
+      "local_tokens": 139,
+      "claude4_tokens": 118,
+      "ratio": 0.8489208633093526,
+      "raw_api_input_tokens": 129
+    },
+    {
+      "id": "prose-3",
+      "bucket": "prose",
+      "description": "Multi-paragraph design rationale",
+      "text_length_chars": 943,
+      "local_tokens": 380,
+      "claude4_tokens": 308,
+      "ratio": 0.8105263157894737,
+      "raw_api_input_tokens": 319
+    },
+    {
+      "id": "prose-4",
+      "bucket": "prose",
+      "description": "Decision-log markdown template",
+      "text_length_chars": 425,
+      "local_tokens": 186,
+      "claude4_tokens": 171,
+      "ratio": 0.9193548387096774,
+      "raw_api_input_tokens": 182
+    },
+    {
+      "id": "prose-5",
+      "bucket": "prose",
+      "description": "Conversational FAQ-style explanation",
+      "text_length_chars": 577,
+      "local_tokens": 228,
+      "claude4_tokens": 217,
+      "ratio": 0.9517543859649122,
+      "raw_api_input_tokens": 228
+    },
+    {
+      "id": "prose-6",
+      "bucket": "prose",
+      "description": "Friction-log entry style",
+      "text_length_chars": 475,
+      "local_tokens": 203,
+      "claude4_tokens": 195,
+      "ratio": 0.9605911330049262,
+      "raw_api_input_tokens": 206
+    },
+    {
+      "id": "code-1",
+      "bucket": "code",
+      "description": "Short TS utility function",
+      "text_length_chars": 560,
+      "local_tokens": 316,
+      "claude4_tokens": 260,
+      "ratio": 0.8227848101265823,
+      "raw_api_input_tokens": 271
+    },
+    {
+      "id": "code-2",
+      "bucket": "code",
+      "description": "Vault open excerpt",
+      "text_length_chars": 763,
+      "local_tokens": 358,
+      "claude4_tokens": 337,
+      "ratio": 0.9413407821229051,
+      "raw_api_input_tokens": 348
+    },
+    {
+      "id": "code-3",
+      "bucket": "code",
+      "description": "Cascade excerpt",
+      "text_length_chars": 922,
+      "local_tokens": 445,
+      "claude4_tokens": 427,
+      "ratio": 0.9595505617977528,
+      "raw_api_input_tokens": 438
+    },
+    {
+      "id": "code-4",
+      "bucket": "code",
+      "description": "Vitest test block",
+      "text_length_chars": 739,
+      "local_tokens": 351,
+      "claude4_tokens": 316,
+      "ratio": 0.9002849002849003,
+      "raw_api_input_tokens": 327
+    },
+    {
+      "id": "code-5",
+      "bucket": "code",
+      "description": "Python solve_dependencies function",
+      "text_length_chars": 829,
+      "local_tokens": 339,
+      "claude4_tokens": 345,
+      "ratio": 1.0176991150442478,
+      "raw_api_input_tokens": 356
+    },
+    {
+      "id": "code-6",
+      "bucket": "code",
+      "description": "TypeScript interfaces",
+      "text_length_chars": 579,
+      "local_tokens": 260,
+      "claude4_tokens": 234,
+      "ratio": 0.9,
+      "raw_api_input_tokens": 245
+    },
+    {
+      "id": "json-1",
+      "bucket": "json",
+      "description": "lattice.recall tool schema",
+      "text_length_chars": 779,
+      "local_tokens": 376,
+      "claude4_tokens": 296,
+      "ratio": 0.7872340425531915,
+      "raw_api_input_tokens": 307
+    },
+    {
+      "id": "json-2",
+      "bucket": "json",
+      "description": "Bench-result metadata",
+      "text_length_chars": 367,
+      "local_tokens": 237,
+      "claude4_tokens": 174,
+      "ratio": 0.7341772151898734,
+      "raw_api_input_tokens": 185
+    },
+    {
+      "id": "json-3",
+      "bucket": "json",
+      "description": "Serena find_symbol schema",
+      "text_length_chars": 551,
+      "local_tokens": 269,
+      "claude4_tokens": 207,
+      "ratio": 0.7695167286245354,
+      "raw_api_input_tokens": 218
+    },
+    {
+      "id": "json-4",
+      "bucket": "json",
+      "description": "Test scenarios JSON",
+      "text_length_chars": 356,
+      "local_tokens": 219,
+      "claude4_tokens": 162,
+      "ratio": 0.7397260273972602,
+      "raw_api_input_tokens": 173
+    },
+    {
+      "id": "json-5",
+      "bucket": "json",
+      "description": "package.json style",
+      "text_length_chars": 255,
+      "local_tokens": 155,
+      "claude4_tokens": 126,
+      "ratio": 0.8129032258064516,
+      "raw_api_input_tokens": 137
+    },
+    {
+      "id": "json-6",
+      "bucket": "json",
+      "description": "OpenAPI fragment",
+      "text_length_chars": 226,
+      "local_tokens": 138,
+      "claude4_tokens": 104,
+      "ratio": 0.7536231884057971,
+      "raw_api_input_tokens": 115
+    },
+    {
+      "id": "mixed-1",
+      "bucket": "mixed",
+      "description": "Filled-in decision log",
+      "text_length_chars": 378,
+      "local_tokens": 180,
+      "claude4_tokens": 159,
+      "ratio": 0.8833333333333333,
+      "raw_api_input_tokens": 170
+    },
+    {
+      "id": "mixed-2",
+      "bucket": "mixed",
+      "description": "Recall-shaped response output",
+      "text_length_chars": 293,
+      "local_tokens": 162,
+      "claude4_tokens": 134,
+      "ratio": 0.8271604938271605,
+      "raw_api_input_tokens": 145
+    },
+    {
+      "id": "mixed-3",
+      "bucket": "mixed",
+      "description": "Frontmatter prefixed note",
+      "text_length_chars": 326,
+      "local_tokens": 186,
+      "claude4_tokens": 158,
+      "ratio": 0.8494623655913979,
+      "raw_api_input_tokens": 169
+    },
+    {
+      "id": "mixed-4",
+      "bucket": "mixed",
+      "description": "Multi-section bench README",
+      "text_length_chars": 322,
+      "local_tokens": 150,
+      "claude4_tokens": 140,
+      "ratio": 0.9333333333333333,
+      "raw_api_input_tokens": 151
+    },
+    {
+      "id": "mixed-5",
+      "bucket": "mixed",
+      "description": "Inline code references in prose",
+      "text_length_chars": 288,
+      "local_tokens": 118,
+      "claude4_tokens": 106,
+      "ratio": 0.8983050847457628,
+      "raw_api_input_tokens": 117
+    },
+    {
+      "id": "mixed-6",
+      "bucket": "mixed",
+      "description": "Issue-tracker style entry",
+      "text_length_chars": 287,
+      "local_tokens": 129,
+      "claude4_tokens": 125,
+      "ratio": 0.9689922480620154,
+      "raw_api_input_tokens": 136
+    },
+    {
+      "id": "edge-1",
+      "bucket": "edge",
+      "description": "Single ASCII character",
+      "text_length_chars": 1,
+      "local_tokens": 2,
+      "claude4_tokens": 1,
+      "ratio": 0.5,
+      "raw_api_input_tokens": 12
+    },
+    {
+      "id": "edge-2",
+      "bucket": "edge",
+      "description": "Short sentence",
+      "text_length_chars": 44,
+      "local_tokens": 18,
+      "claude4_tokens": 18,
+      "ratio": 1.0,
+      "raw_api_input_tokens": 29
+    },
+    {
+      "id": "edge-3",
+      "bucket": "edge",
+      "description": "Long repetitive pattern",
+      "text_length_chars": 6750,
+      "local_tokens": 2229,
+      "claude4_tokens": 3501,
+      "ratio": 1.5706594885598923,
+      "raw_api_input_tokens": 3512
+    },
+    {
+      "id": "edge-4",
+      "bucket": "edge",
+      "description": "Mixed unicode + emoji",
+      "text_length_chars": 119,
+      "local_tokens": 88,
+      "claude4_tokens": 75,
+      "ratio": 0.8522727272727273,
+      "raw_api_input_tokens": 86
+    },
+    {
+      "id": "edge-5",
+      "bucket": "edge",
+      "description": "Very long English-shaped sentence repeats",
+      "text_length_chars": 5890,
+      "local_tokens": 2209,
+      "claude4_tokens": 2171,
+      "ratio": 0.9827976459936623,
+      "raw_api_input_tokens": 2182
+    },
+    {
+      "id": "edge-6",
+      "bucket": "edge",
+      "description": "All numeric and structured edge cases",
+      "text_length_chars": 169,
+      "local_tokens": 184,
+      "claude4_tokens": 108,
+      "ratio": 0.5869565217391305,
+      "raw_api_input_tokens": 119
+    }
+  ],
+  "statistics": {
+    "overall": {
+      "samples": 30,
+      "min_ratio": 0.5,
+      "median_ratio": 0.8983050847457628,
+      "p95_ratio": 1.0176991150442478,
+      "max_ratio": 1.5706594885598923,
+      "mean_ratio": 0.880384380626145,
+      "spread": 1.0706594885598923
+    },
+    "overall_non_edge": {
+      "samples": 24,
+      "min_ratio": 0.7341772151898734,
+      "median_ratio": 0.8983050847457628,
+      "p95_ratio": 0.9689922480620154,
+      "max_ratio": 1.0176991150442478,
+      "spread": 0.28352189985437437
+    },
+    "by_bucket": {
+      "prose": {
+        "count": 6,
+        "min_ratio": 0.8105263157894737,
+        "median_ratio": 0.9282700421940928,
+        "p95_ratio": 0.9605911330049262,
+        "max_ratio": 0.9605911330049262,
+        "mean_ratio": 0.9032362631620724
+      },
+      "code": {
+        "count": 6,
+        "min_ratio": 0.8227848101265823,
+        "median_ratio": 0.9413407821229051,
+        "p95_ratio": 1.0176991150442478,
+        "max_ratio": 1.0176991150442478,
+        "mean_ratio": 0.9236100282293981
+      },
+      "json": {
+        "count": 6,
+        "min_ratio": 0.7341772151898734,
+        "median_ratio": 0.7695167286245354,
+        "p95_ratio": 0.8129032258064516,
+        "max_ratio": 0.8129032258064516,
+        "mean_ratio": 0.7661967379961849
+      },
+      "mixed": {
+        "count": 6,
+        "min_ratio": 0.8271604938271605,
+        "median_ratio": 0.8983050847457628,
+        "p95_ratio": 0.9689922480620154,
+        "max_ratio": 0.9689922480620154,
+        "mean_ratio": 0.8934311431488339
+      },
+      "edge": {
+        "count": 6,
+        "min_ratio": 0.5,
+        "median_ratio": 0.9827976459936623,
+        "p95_ratio": 1.5706594885598923,
+        "max_ratio": 1.5706594885598923,
+        "mean_ratio": 0.9154477305942353
+      }
+    }
+  },
+  "scatter": {
+    "length_x_ratio": [
+      {
+        "id": "edge-1",
+        "bucket": "edge",
+        "local_tokens": 2,
+        "ratio": 0.5
+      },
+      {
+        "id": "edge-2",
+        "bucket": "edge",
+        "local_tokens": 18,
+        "ratio": 1.0
+      },
+      {
+        "id": "edge-4",
+        "bucket": "edge",
+        "local_tokens": 88,
+        "ratio": 0.8522727272727273
+      },
+      {
+        "id": "mixed-5",
+        "bucket": "mixed",
+        "local_tokens": 118,
+        "ratio": 0.8983050847457628
+      },
+      {
+        "id": "mixed-6",
+        "bucket": "mixed",
+        "local_tokens": 129,
+        "ratio": 0.9689922480620154
+      },
+      {
+        "id": "json-6",
+        "bucket": "json",
+        "local_tokens": 138,
+        "ratio": 0.7536231884057971
+      },
+      {
+        "id": "prose-2",
+        "bucket": "prose",
+        "local_tokens": 139,
+        "ratio": 0.8489208633093526
+      },
+      {
+        "id": "mixed-4",
+        "bucket": "mixed",
+        "local_tokens": 150,
+        "ratio": 0.9333333333333333
+      },
+      {
+        "id": "json-5",
+        "bucket": "json",
+        "local_tokens": 155,
+        "ratio": 0.8129032258064516
+      },
+      {
+        "id": "mixed-2",
+        "bucket": "mixed",
+        "local_tokens": 162,
+        "ratio": 0.8271604938271605
+      },
+      {
+        "id": "mixed-1",
+        "bucket": "mixed",
+        "local_tokens": 180,
+        "ratio": 0.8833333333333333
+      },
+      {
+        "id": "edge-6",
+        "bucket": "edge",
+        "local_tokens": 184,
+        "ratio": 0.5869565217391305
+      },
+      {
+        "id": "prose-4",
+        "bucket": "prose",
+        "local_tokens": 186,
+        "ratio": 0.9193548387096774
+      },
+      {
+        "id": "mixed-3",
+        "bucket": "mixed",
+        "local_tokens": 186,
+        "ratio": 0.8494623655913979
+      },
+      {
+        "id": "prose-6",
+        "bucket": "prose",
+        "local_tokens": 203,
+        "ratio": 0.9605911330049262
+      },
+      {
+        "id": "json-4",
+        "bucket": "json",
+        "local_tokens": 219,
+        "ratio": 0.7397260273972602
+      },
+      {
+        "id": "prose-5",
+        "bucket": "prose",
+        "local_tokens": 228,
+        "ratio": 0.9517543859649122
+      },
+      {
+        "id": "prose-1",
+        "bucket": "prose",
+        "local_tokens": 237,
+        "ratio": 0.9282700421940928
+      },
+      {
+        "id": "json-2",
+        "bucket": "json",
+        "local_tokens": 237,
+        "ratio": 0.7341772151898734
+      },
+      {
+        "id": "code-6",
+        "bucket": "code",
+        "local_tokens": 260,
+        "ratio": 0.9
+      },
+      {
+        "id": "json-3",
+        "bucket": "json",
+        "local_tokens": 269,
+        "ratio": 0.7695167286245354
+      },
+      {
+        "id": "code-1",
+        "bucket": "code",
+        "local_tokens": 316,
+        "ratio": 0.8227848101265823
+      },
+      {
+        "id": "code-5",
+        "bucket": "code",
+        "local_tokens": 339,
+        "ratio": 1.0176991150442478
+      },
+      {
+        "id": "code-4",
+        "bucket": "code",
+        "local_tokens": 351,
+        "ratio": 0.9002849002849003
+      },
+      {
+        "id": "code-2",
+        "bucket": "code",
+        "local_tokens": 358,
+        "ratio": 0.9413407821229051
+      },
+      {
+        "id": "json-1",
+        "bucket": "json",
+        "local_tokens": 376,
+        "ratio": 0.7872340425531915
+      },
+      {
+        "id": "prose-3",
+        "bucket": "prose",
+        "local_tokens": 380,
+        "ratio": 0.8105263157894737
+      },
+      {
+        "id": "code-3",
+        "bucket": "code",
+        "local_tokens": 445,
+        "ratio": 0.9595505617977528
+      },
+      {
+        "id": "edge-5",
+        "bucket": "edge",
+        "local_tokens": 2209,
+        "ratio": 0.9827976459936623
+      },
+      {
+        "id": "edge-3",
+        "bucket": "edge",
+        "local_tokens": 2229,
+        "ratio": 1.5706594885598923
+      }
+    ],
+    "bucket_x_ratio": [
+      {
+        "id": "code-6",
+        "bucket": "code",
+        "local_tokens": 260,
+        "ratio": 0.9
+      },
+      {
+        "id": "code-1",
+        "bucket": "code",
+        "local_tokens": 316,
+        "ratio": 0.8227848101265823
+      },
+      {
+        "id": "code-5",
+        "bucket": "code",
+        "local_tokens": 339,
+        "ratio": 1.0176991150442478
+      },
+      {
+        "id": "code-4",
+        "bucket": "code",
+        "local_tokens": 351,
+        "ratio": 0.9002849002849003
+      },
+      {
+        "id": "code-2",
+        "bucket": "code",
+        "local_tokens": 358,
+        "ratio": 0.9413407821229051
+      },
+      {
+        "id": "code-3",
+        "bucket": "code",
+        "local_tokens": 445,
+        "ratio": 0.9595505617977528
+      },
+      {
+        "id": "edge-1",
+        "bucket": "edge",
+        "local_tokens": 2,
+        "ratio": 0.5
+      },
+      {
+        "id": "edge-2",
+        "bucket": "edge",
+        "local_tokens": 18,
+        "ratio": 1.0
+      },
+      {
+        "id": "edge-4",
+        "bucket": "edge",
+        "local_tokens": 88,
+        "ratio": 0.8522727272727273
+      },
+      {
+        "id": "edge-6",
+        "bucket": "edge",
+        "local_tokens": 184,
+        "ratio": 0.5869565217391305
+      },
+      {
+        "id": "edge-5",
+        "bucket": "edge",
+        "local_tokens": 2209,
+        "ratio": 0.9827976459936623
+      },
+      {
+        "id": "edge-3",
+        "bucket": "edge",
+        "local_tokens": 2229,
+        "ratio": 1.5706594885598923
+      },
+      {
+        "id": "json-6",
+        "bucket": "json",
+        "local_tokens": 138,
+        "ratio": 0.7536231884057971
+      },
+      {
+        "id": "json-5",
+        "bucket": "json",
+        "local_tokens": 155,
+        "ratio": 0.8129032258064516
+      },
+      {
+        "id": "json-4",
+        "bucket": "json",
+        "local_tokens": 219,
+        "ratio": 0.7397260273972602
+      },
+      {
+        "id": "json-2",
+        "bucket": "json",
+        "local_tokens": 237,
+        "ratio": 0.7341772151898734
+      },
+      {
+        "id": "json-3",
+        "bucket": "json",
+        "local_tokens": 269,
+        "ratio": 0.7695167286245354
+      },
+      {
+        "id": "json-1",
+        "bucket": "json",
+        "local_tokens": 376,
+        "ratio": 0.7872340425531915
+      },
+      {
+        "id": "mixed-5",
+        "bucket": "mixed",
+        "local_tokens": 118,
+        "ratio": 0.8983050847457628
+      },
+      {
+        "id": "mixed-6",
+        "bucket": "mixed",
+        "local_tokens": 129,
+        "ratio": 0.9689922480620154
+      },
+      {
+        "id": "mixed-4",
+        "bucket": "mixed",
+        "local_tokens": 150,
+        "ratio": 0.9333333333333333
+      },
+      {
+        "id": "mixed-2",
+        "bucket": "mixed",
+        "local_tokens": 162,
+        "ratio": 0.8271604938271605
+      },
+      {
+        "id": "mixed-1",
+        "bucket": "mixed",
+        "local_tokens": 180,
+        "ratio": 0.8833333333333333
+      },
+      {
+        "id": "mixed-3",
+        "bucket": "mixed",
+        "local_tokens": 186,
+        "ratio": 0.8494623655913979
+      },
+      {
+        "id": "prose-2",
+        "bucket": "prose",
+        "local_tokens": 139,
+        "ratio": 0.8489208633093526
+      },
+      {
+        "id": "prose-4",
+        "bucket": "prose",
+        "local_tokens": 186,
+        "ratio": 0.9193548387096774
+      },
+      {
+        "id": "prose-6",
+        "bucket": "prose",
+        "local_tokens": 203,
+        "ratio": 0.9605911330049262
+      },
+      {
+        "id": "prose-5",
+        "bucket": "prose",
+        "local_tokens": 228,
+        "ratio": 0.9517543859649122
+      },
+      {
+        "id": "prose-1",
+        "bucket": "prose",
+        "local_tokens": 237,
+        "ratio": 0.9282700421940928
+      },
+      {
+        "id": "prose-3",
+        "bucket": "prose",
+        "local_tokens": 380,
+        "ratio": 0.8105263157894737
+      }
+    ]
+  },
+  "recommendations": {
+    "p95_overall": 1.02,
+    "max_times_1_05_overall": 1.65,
+    "p95_non_edge": 0.97,
+    "max_times_1_05_non_edge": 1.07
+  }
+}

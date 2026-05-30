@@ -1,0 +1,13 @@
+# Pinned fixture commit for all benchmarks (docs/benchmarking.md §1.1).
+# Format: <repo>@<sha> on one line. Comments start with #.
+#
+# Resolved 2026-05-25 via:
+#   git ls-remote https://github.com/tiangolo/fastapi refs/tags/0.115.0
+#
+# Repo:   github.com/tiangolo/fastapi
+# Tag:    0.115.0  (lightweight tag, points directly at the commit below)
+# Why:    ~600 Python files, MIT-licensed, well-known to the Claude Code
+#         audience, has both shallow utility code and deep dependency graphs.
+#         Avoid lodash (too flat) and react (too large, over-benched).
+
+fastapi@40e33e492dbf4af6172997f4e3238a32e56cbe26

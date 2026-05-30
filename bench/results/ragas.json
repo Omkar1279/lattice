@@ -1,0 +1,80 @@
+{
+  "scores": [
+    {
+      "query": "where is HTTPException defined?",
+      "faithfulness": 0.19230769230769232,
+      "answer_relevance": 0.1875,
+      "context_precision": 0.6666666666666666,
+      "token_cost": 78
+    },
+    {
+      "query": "how does the retrieval cascade work?",
+      "faithfulness": 0.3333333333333333,
+      "answer_relevance": 0.10714285714285714,
+      "context_precision": 0.6666666666666666,
+      "token_cost": 92
+    },
+    {
+      "query": "what is the token budget enforcement mechanism?",
+      "faithfulness": 0.2926829268292683,
+      "answer_relevance": 0.14285714285714285,
+      "context_precision": 0.6666666666666666,
+      "token_cost": 92
+    },
+    {
+      "query": "how are notes persisted to disk?",
+      "faithfulness": 0.45161290322580644,
+      "answer_relevance": 0.08333333333333333,
+      "context_precision": 0.5,
+      "token_cost": 60
+    },
+    {
+      "query": "where does tree-sitter symbol extraction happen?",
+      "faithfulness": 0.2222222222222222,
+      "answer_relevance": 0.19047619047619047,
+      "context_precision": 0.6666666666666666,
+      "token_cost": 65
+    },
+    {
+      "query": "what happens during session start hook?",
+      "faithfulness": 0.4375,
+      "answer_relevance": 0.12,
+      "context_precision": 0.5,
+      "token_cost": 54
+    },
+    {
+      "query": "how does freshness decay work?",
+      "faithfulness": 0.3142857142857143,
+      "answer_relevance": 0.08333333333333333,
+      "context_precision": 0.3333333333333333,
+      "token_cost": 83
+    },
+    {
+      "query": "explain the supersedes mechanism",
+      "faithfulness": 0.2777777777777778,
+      "answer_relevance": 0.07692307692307693,
+      "context_precision": 0.5,
+      "token_cost": 60
+    },
+    {
+      "query": "what MCP tools does lattice expose?",
+      "faithfulness": 0.41935483870967744,
+      "answer_relevance": 0.14285714285714285,
+      "context_precision": 0.75,
+      "token_cost": 72
+    },
+    {
+      "query": "how does the pre-tool-use hook block reads?",
+      "faithfulness": 0.3333333333333333,
+      "answer_relevance": 0.2222222222222222,
+      "context_precision": 0.3333333333333333,
+      "token_cost": 85
+    }
+  ],
+  "aggregates": {
+    "mean_faithfulness": 0.32744107420248253,
+    "mean_answer_relevance": 0.1356645299145299,
+    "mean_context_precision": 0.5583333333333333,
+    "total_token_cost": 741
+  }
+}

@@ -1,0 +1,48 @@
+# Python virtual environments & packages
+.venv/
+venv/
+ENV/
+env/
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Lattice storage directory
+.lattice/
+# If you want to version control your human-authored notes/decisions,
+# you can un-comment the next line to keep them in git:
+# !.lattice/notes/
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# Developer keys and secrets (never commit these)
+.anthropic-key
+.bedrock-key
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa*
+*secret*
+*credential*
+.env
+.env.*
+
+# Benchmark fixtures (downloaded on first run)
+bench/fixtures/coderag-humaneval/HumanEval.jsonl
+bench/fixtures/coderag-humaneval/HumanEval.jsonl.gz

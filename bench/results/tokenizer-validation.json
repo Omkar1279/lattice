@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "date": "2026-05-30T15:16:01.313337Z",
+    "model": "claude-opus-4-7",
+    "python": "3.12.11 (main, Sep 29 2025, 14:14:05) [Clang 17.0.0 (clang-1700.0.13.5)]",
+    "platform": "darwin",
+    "tokenizer_source": "anthropic-api"
+  },
+  "local": {
+    "tokenizer": "tiktoken",
+    "total_tokens": 1164,
+    "per_tool": [
+      {
+        "name": "recall",
+        "json_chars": 883,
+        "local_tokens": 444,
+        "api_tokens": 240,
+        "diff_pct_local_vs_api": 85.0
+      },
+      {
+        "name": "recall_expand",
+        "json_chars": 618,
+        "local_tokens": 314,
+        "api_tokens": 169,
+        "diff_pct_local_vs_api": 85.8
+      },
+      {
+        "name": "write",
+        "json_chars": 753,
+        "local_tokens": 406,
+        "api_tokens": 219,
+        "diff_pct_local_vs_api": 85.4
+      }
+    ]
+  },
+  "ground_truth": {
+    "source": "anthropic-api",
+    "endpoint": "POST /v1/messages/count_tokens",
+    "baseline": {
+      "prompt": "JSON.stringify(write)",
+      "local_tokens": 406,
+      "api_total_tokens": 321
+    },
+    "with_content": {
+      "prompt": "JSON.stringify([recall, recall_expand, write])",
+      "local_tokens": 1170,
+      "api_total_tokens": 949
+    },
+    "local_delta": 764,
+    "api_delta": 628,
+    "total_diff_pct_local_vs_api": 21.7,
+    "error": null
+  },
+  "verdict": "local tiktoken differs by 21.7% from anthropic-api ground-truth (local=1164, api=628) \u2014 SWITCH to anthropic-api for all bench work."
+}

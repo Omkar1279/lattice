@@ -1,0 +1,82 @@
+{
+  "$schema": "https://schemas.anthropic.com/claude-plugin/v1.json",
+  "name": "lattice-python",
+  "version": "0.1.0",
+  "description": "Token-efficient hybrid retrieval + freshness-aware memory. Python Port.",
+  "author": {
+    "name": "lattice contributors"
+  },
+  "license": "MIT",
+  "mcpServers": {
+    "lattice": {
+      "command": "lattice",
+      "args": ["mcp-server"],
+      "env": {
+        "LATTICE_EMBEDDINGS": "off",
+        "LATTICE_VAULT_DIR": ".lattice"
+      }
+    }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lattice hook session-start",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lattice hook pre-compact",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|Read|Grep|Bash|Cat",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lattice hook post-tool-use",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Glob|Grep|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lattice hook pre-tool-use",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lattice hook stop",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

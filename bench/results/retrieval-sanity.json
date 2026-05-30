@@ -1,0 +1,676 @@
+{
+  "meta": {
+    "date": "2026-05-30T14:25:58.861185Z",
+    "fixture": "fastapi@40e33e492dbf4af6172997f4e3238a32e56cbe26",
+    "fixture_path": "/tmp/lattice-bench-fastapi-0.115.0",
+    "vault_path": "/var/folders/lp/rrzcl1w526l7kcblg7f6jmz80000gn/T/lattice-sanity-3fypo0mh",
+    "chunks_indexed": 2028,
+    "symbols_indexed": 5115,
+    "index_elapsed_sec": 7.402537822723389,
+    "python": "3.12.11 (main, Sep 29 2025, 14:14:05) [Clang 17.0.0 (clang-1700.0.13.5)]",
+    "platform": "darwin",
+    "methodology": "single condition (full cascade), path-level R@K."
+  },
+  "overall": {
+    "n": 20,
+    "r_at_5": 0.75,
+    "r_at_10": 0.8,
+    "mrr": 0.6666666666666667
+  },
+  "by_category": {
+    "symbol": {
+      "n": 10,
+      "r_at_5": 0.9,
+      "r_at_10": 0.9,
+      "mrr": 0.9
+    },
+    "behavioural": {
+      "n": 10,
+      "r_at_5": 0.6,
+      "r_at_10": 0.7,
+      "mrr": 0.4333333333333333
+    }
+  },
+  "verdict": "PASS: symbol R@5 = 0.90 >= 0.9.",
+  "per_query": [
+    {
+      "id": "q001",
+      "category": "symbol",
+      "query": "where is HTTPException defined?",
+      "required_paths": [
+        "fastapi/exceptions.py"
+      ],
+      "acceptable_paths": [
+        "fastapi/__init__.py"
+      ],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/exceptions.py",
+          "heading": "exceptions.py:1-65"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "category": "symbol",
+      "query": "where is the APIRouter class?",
+      "required_paths": [
+        "fastapi/routing.py"
+      ],
+      "acceptable_paths": [
+        "fastapi/__init__.py"
+      ],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:1-76"
+        }
+      ]
+    },
+    {
+      "id": "q003",
+      "category": "symbol",
+      "query": "where's the FastAPI class itself defined?",
+      "required_paths": [
+        "fastapi/applications.py"
+      ],
+      "acceptable_paths": [
+        "fastapi/__init__.py"
+      ],
+      "hit_at_5": false,
+      "hit_at_10": false,
+      "first_hit_rank": null,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/utils.py",
+          "heading": "utils.py:109-161"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/security/oauth2.py",
+          "heading": "oauth2.py:598-638"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/datastructures.py",
+          "heading": "datastructures.py:176-204"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/encoders.py",
+          "heading": "encoders.py:102-343"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/param_functions.py",
+          "heading": "param_functions.py:1263-1589"
+        }
+      ]
+    },
+    {
+      "id": "q004",
+      "category": "symbol",
+      "query": "show me jsonable_encoder",
+      "required_paths": [
+        "fastapi/encoders.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/encoders.py",
+          "heading": "encoders.py:1-55"
+        }
+      ]
+    },
+    {
+      "id": "q005",
+      "category": "symbol",
+      "query": "where is solve_dependencies defined?",
+      "required_paths": [
+        "fastapi/dependencies/utils.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/dependencies/utils.py",
+          "heading": "utils.py:1-74"
+        }
+      ]
+    },
+    {
+      "id": "q006",
+      "category": "symbol",
+      "query": "where is the Dependant class?",
+      "required_paths": [
+        "fastapi/dependencies/models.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/dependencies/models.py",
+          "heading": "models.py"
+        }
+      ]
+    },
+    {
+      "id": "q007",
+      "category": "symbol",
+      "query": "find the APIRoute class",
+      "required_paths": [
+        "fastapi/routing.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:1-76"
+        }
+      ]
+    },
+    {
+      "id": "q008",
+      "category": "symbol",
+      "query": "where is OAuth2PasswordBearer defined?",
+      "required_paths": [
+        "fastapi/security/oauth2.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/security/oauth2.py",
+          "heading": "oauth2.py:1-13"
+        }
+      ]
+    },
+    {
+      "id": "q009",
+      "category": "symbol",
+      "query": "where's RequestValidationError?",
+      "required_paths": [
+        "fastapi/exceptions.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/exceptions.py",
+          "heading": "exceptions.py:1-65"
+        }
+      ]
+    },
+    {
+      "id": "q010",
+      "category": "symbol",
+      "query": "where is the Body() parameter function defined?",
+      "required_paths": [
+        "fastapi/param_functions.py"
+      ],
+      "acceptable_paths": [
+        "fastapi/params.py",
+        "fastapi/__init__.py"
+      ],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/param_functions.py",
+          "heading": "param_functions.py:1263-1589"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/security/oauth2.py",
+          "heading": "oauth2.py:598-638"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/param_functions.py",
+          "heading": "param_functions.py:11-336"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/_compat.py",
+          "heading": "_compat.py:49-524"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/param_functions.py",
+          "heading": "param_functions.py:1906-2217"
+        }
+      ]
+    },
+    {
+      "id": "q011",
+      "category": "behavioural",
+      "query": "what handles 422 errors when request validation fails",
+      "required_paths": [
+        "fastapi/exception_handlers.py"
+      ],
+      "acceptable_paths": [
+        "fastapi/exceptions.py"
+      ],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/exception_handlers.py",
+          "heading": "exception_handlers.py"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/exceptions.py",
+          "heading": "exceptions.py:139-176"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/dependencies/utils.py",
+          "heading": "utils.py:562-685"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:217-357"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/dependencies/utils.py",
+          "heading": "utils.py:866-909"
+        }
+      ]
+    },
+    {
+      "id": "q012",
+      "category": "behavioural",
+      "query": "where does fastapi serialize the response from a handler",
+      "required_paths": [
+        "fastapi/routing.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 3,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/datastructures.py",
+          "heading": "datastructures.py:30-173"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/responses.py",
+          "heading": "responses.py"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:217-357"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/applications.py",
+          "heading": "applications.py:48-4585"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:593-4437"
+        }
+      ]
+    },
+    {
+      "id": "q013",
+      "category": "behavioural",
+      "query": "how does fastapi actually call my endpoint function",
+      "required_paths": [
+        "fastapi/routing.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:204-214"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/dependencies/utils.py",
+          "heading": "utils.py:257-306"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:428-590"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:388-425"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/openapi/docs.py",
+          "heading": "docs.py:161-253"
+        }
+      ]
+    },
+    {
+      "id": "q014",
+      "category": "behavioural",
+      "query": "where is the per-route request handler built",
+      "required_paths": [
+        "fastapi/routing.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 3,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/exception_handlers.py",
+          "heading": "exception_handlers.py"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/datastructures.py",
+          "heading": "datastructures.py:30-173"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:428-590"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/openapi/utils.py",
+          "heading": "utils.py:149-198"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/openapi/utils.py",
+          "heading": "utils.py:233-422"
+        }
+      ]
+    },
+    {
+      "id": "q015",
+      "category": "behavioural",
+      "query": "where Depends() actually gets resolved into values",
+      "required_paths": [
+        "fastapi/dependencies/utils.py"
+      ],
+      "acceptable_paths": [
+        "fastapi/dependencies/utils.py"
+      ],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 2,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:204-214"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/dependencies/utils.py",
+          "heading": "utils.py:562-685"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/dependencies/utils.py",
+          "heading": "utils.py:688-727"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/security/api_key.py",
+          "heading": "api_key.py:209-301"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/security/api_key.py",
+          "heading": "api_key.py:114-206"
+        }
+      ]
+    },
+    {
+      "id": "q016",
+      "category": "behavioural",
+      "query": "the code that turns a pydantic model into a JSON-safe dict",
+      "required_paths": [
+        "fastapi/encoders.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": true,
+      "hit_at_10": true,
+      "first_hit_rank": 1,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/encoders.py",
+          "heading": "encoders.py:102-343"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/dependencies/utils.py",
+          "heading": "utils.py:912-962"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/utils.py",
+          "heading": "utils.py:63-106"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/applications.py",
+          "heading": "applications.py:48-4585"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/security/api_key.py",
+          "heading": "api_key.py:209-301"
+        }
+      ]
+    },
+    {
+      "id": "q017",
+      "category": "behavioural",
+      "query": "where the OpenAPI spec gets generated",
+      "required_paths": [
+        "fastapi/openapi/utils.py"
+      ],
+      "acceptable_paths": [
+        "fastapi/openapi/utils.py"
+      ],
+      "hit_at_5": false,
+      "hit_at_10": false,
+      "first_hit_rank": null,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/security/oauth2.py",
+          "heading": "oauth2.py:152-305"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/applications.py",
+          "heading": "applications.py:48-4585"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:593-4437"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/param_functions.py",
+          "heading": "param_functions.py:1906-2217"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/param_functions.py",
+          "heading": "param_functions.py:1592-1903"
+        }
+      ]
+    },
+    {
+      "id": "q018",
+      "category": "behavioural",
+      "query": "the function that decides whether a status code (like 204) should have a response body",
+      "required_paths": [
+        "fastapi/utils.py"
+      ],
+      "acceptable_paths": [],
+      "hit_at_5": false,
+      "hit_at_10": false,
+      "first_hit_rank": null,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/param_functions.py",
+          "heading": "param_functions.py:2280-2360"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/applications.py",
+          "heading": "applications.py:48-4585"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/routing.py",
+          "heading": "routing.py:593-4437"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/dependencies/utils.py",
+          "heading": "utils.py:801-820"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/param_functions.py",
+          "heading": "param_functions.py:2220-2277"
+        }
+      ]
+    },
+    {
+      "id": "q019",
+      "category": "behavioural",
+      "query": "how is the FastAPI app object constructed",
+      "required_paths": [
+        "fastapi/applications.py"
+      ],
+      "acceptable_paths": [
+        "fastapi/applications.py"
+      ],
+      "hit_at_5": false,
+      "hit_at_10": true,
+      "first_hit_rank": 6,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/security/api_key.py",
+          "heading": "api_key.py:209-301"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/security/api_key.py",
+          "heading": "api_key.py:114-206"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/security/api_key.py",
+          "heading": "api_key.py:15-111"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/openapi/docs.py",
+          "heading": "docs.py:26-158"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/openapi/docs.py",
+          "heading": "docs.py:161-253"
+        }
+      ]
+    },
+    {
+      "id": "q020",
+      "category": "behavioural",
+      "query": "what runs when I raise HTTPException in a route",
+      "required_paths": [
+        "fastapi/exception_handlers.py"
+      ],
+      "acceptable_paths": [
+        "fastapi/exceptions.py"
+      ],
+      "hit_at_5": false,
+      "hit_at_10": false,
+      "first_hit_rank": null,
+      "top_5": [
+        {
+          "rank": 1,
+          "path": "fastapi/openapi/utils.py",
+          "heading": "utils.py:425-453"
+        },
+        {
+          "rank": 2,
+          "path": "fastapi/security/http.py",
+          "heading": "http.py:324-420"
+        },
+        {
+          "rank": 3,
+          "path": "fastapi/openapi/utils.py",
+          "heading": "utils.py:233-422"
+        },
+        {
+          "rank": 4,
+          "path": "fastapi/security/http.py",
+          "heading": "http.py:220-321"
+        },
+        {
+          "rank": 5,
+          "path": "fastapi/security/open_id_connect_url.py",
+          "heading": "open_id_connect_url.py:11-84"
+        }
+      ]
+    }
+  ]
+}
