@@ -1,0 +1,208 @@
+# FastAPI fixture — per-pair prompts and grading oracles.
+#
+# Each pair declares:
+#   prompt    — the user message sent to claude -p
+#   oracle    — how the answer is graded:
+#                 type=objective → regex/substring match on the final answer
+#                 type=narrative → LLM-as-judge (Opus 4.7) returns YES/NO
+#                 type=storage   → checks lattice DB side-effect (pair 4 only)
+#
+# Objective oracles MUST include `must_contain_paths` AND/OR `must_contain_terms`.
+# Each entry passes only if ALL `must_contain_*` are satisfied AND no
+# `must_not_contain_*` are matched. Path matches are exact-substring on the
+# final answer text (so the model citing the path counts).
+#
+# Narrative oracles MUST include `judge_question` — a yes/no question the
+# judge model answers given (the model's full final answer). Self-preference
+# bias is mitigated by judging with Opus 4.7 (stronger than the Sonnet 4.6
+# under test).
+
+fixture: fastapi
+index_dirs: ["fastapi"]
+
+pairs:
+
+  p1_s1:
+    # IMPORTANT: this prompt must NOT name the file path or class name,
+    # otherwise pair 1 measures cache parroting instead of cross-session
+    # memory. The model must discover the answer in S1, persist it
+    # (via lattice or via the model's own context — which is gone in S2),
+    # and S2 must recover it.
+    prompt: >-
+      In this codebase, find the file that defines the main top-level
+      application class — the class that users instantiate at the entry
+      point of their app (something they would write as
+      `app = SomeClass(...)` at module scope). Give the file path relative
+      to the repo root and the exact class name.
+    paraphrases:
+      - >-
+        In this codebase, find the file that defines the main top-level
+        application class — the class that users instantiate at the entry
+        point of their app (something they would write as
+        `app = SomeClass(...)` at module scope). Give the file path relative
+        to the repo root and the exact class name.
+      - >-
+        Locate the source file defining the primary entry-point application class
+        in this repository (the class used to initialize the main app object,
+        e.g., `app = MainClass()`). Provide the class name and its relative path from the root.
+      - >-
+        Identify the file where the central application class is defined (which
+        developers instantiate to boot their service at the top level). Return
+        its relative filepath and the exact class name.
+    oracle:
+      type: objective
+      must_contain_paths: ["fastapi/applications.py"]
+      must_contain_terms: ["FastAPI"]   # the main class name
+
+  p1_s2:
+    # Cross-session continuity: S2 in a fresh session asks for what S1
+    # established. WITH lattice this is recoverable from the index; WITHOUT
+    # it must rediscover. The prompt deliberately does not name the answer.
+    prompt: >-
+      In an earlier session you found the file that defines the main
+      top-level application class users instantiate at the entry of their
+      app. What was the file path, and what is the class name? Be brief.
+    paraphrases:
+      - >-
+        In an earlier session you found the file that defines the main
+        top-level application class users instantiate at the entry of their
+        app. What was the file path, and what is the class name? Be brief.
+      - >-
+        Recall the top-level application class and its defining file that you
+        identified in our previous session. Give the relative path and class name briefly.
+      - >-
+        You previously located the main application class definition file. What
+        was the exact class name and its root-relative path? Keep it concise.
+    oracle:
+      type: objective
+      must_contain_paths: ["fastapi/applications.py"]
+      must_contain_terms: ["FastAPI"]
+
+  p2_corpusscale:
+    # Specific, named target rather than "find auth context" (which assumes
+    # React-style architecture and doesn't port). Dependency-injection is
+    # FastAPI's core concept and has a single canonical resolution file.
+    prompt: >-
+      In this codebase, find the function that resolves a dependency-injection
+      tree at request time (i.e. walks a `Depends(...)` chain, calls each
+      dependency, and assembles the kwargs for the path operation). Give the
+      file path and the function name.
+    paraphrases:
+      - >-
+        In this codebase, find the function that resolves a dependency-injection
+        tree at request time (i.e. walks a `Depends(...)` chain, calls each
+        dependency, and assembles the kwargs for the path operation). Give the
+        file path and the function name.
+      - >-
+        Search this project for the function responsible for resolving runtime
+        dependency-injection trees (resolving nested `Depends` calls and constructing
+        parameters for route handlers). Identify the function name and its file path.
+      - >-
+        Identify the relative path and function name that handles request-time
+        dependency resolution (walking the dependency graph, executing dependencies,
+        and preparing kwargs for operation handlers) in this codebase.
+    oracle:
+      type: objective
+      must_contain_paths: ["fastapi/dependencies/utils.py"]
+      must_contain_terms: ["solve_dependencies"]
+
+  p3_graphnav:
+    # Fixed-target version of the broken "find a widely-imported component"
+    # prompt. Asks for a specific symbol's usage, comparable across runs.
+    prompt: >-
+      In this codebase, list 3 distinct files (other than its own definition
+      file) that import or use `APIRouter` from FastAPI. Give exact file paths
+      relative to the repo root.
+    paraphrases:
+      - >-
+        In this codebase, list 3 distinct files (other than its own definition
+        file) that import or use `APIRouter` from FastAPI. Give exact file paths
+        relative to the repo root.
+      - >-
+        Find and list three separate files in this repository (excluding the
+        definition module itself) that import or utilize the `APIRouter` class.
+        Provide their exact root-relative file paths.
+      - >-
+        Identify 3 different files in the codebase (not including where it is
+        defined) that make use of or import `APIRouter` from FastAPI. State their
+        exact relative paths.
+    oracle:
+      type: narrative
+      # APIRouter is used in dozens of files; we judge whether the model named
+      # 3 distinct, real, non-definition files. A judge call is cheaper here
+      # than enumerating valid path regexes for the whole repo.
+      judge_question: >-
+        Did the answer list 3 DISTINCT file paths that are NOT
+        `fastapi/routing.py` (the definition file)? Each path should look like
+        a plausible FastAPI repo path (e.g. starts with `fastapi/` or `tests/`
+        and ends with `.py`). The answer must clearly state 3 separate paths.
+        Answer YES only if all 3 are present and distinct.
+      # Belt-and-suspenders: the answer must at least mention the term.
+      must_contain_terms: ["APIRouter"]
+
+  p4_s1:
+    # Decision persistence S1: model is told to remember a decision.
+    # Grading: with lattice, lattice.write should have been called.
+    # Without lattice, this pair is expected to fail at S2 — that's the test.
+    prompt: >-
+      I want you to remember this decision for future sessions: "We chose
+      `Depends()` over a custom service-locator pattern for dependency
+      injection in this project because of its native FastAPI integration and
+      automatic OpenAPI schema generation." Persist this so a future session
+      can recall it. Confirm in one sentence that you have persisted it and
+      describe HOW you persisted it.
+    paraphrases:
+      - >-
+        I want you to remember this decision for future sessions: "We chose
+        `Depends()` over a custom service-locator pattern for dependency
+        injection in this project because of its native FastAPI integration and
+        automatic OpenAPI schema generation." Persist this so a future session
+        can recall it. Confirm in one sentence that you have persisted it and
+        describe HOW you persisted it.
+      - >-
+        Please save this architectural decision: "We chose `Depends()` over a
+        custom service-locator pattern for dependency injection in this project
+        because of its native FastAPI integration and automatic OpenAPI schema
+        generation." Ensure this choice is persisted so a future session can
+        retrieve it. Write a one-sentence confirmation explaining the persistence method.
+      - >-
+        Store the following decision for our upcoming sessions: "We chose
+        `Depends()` over a custom service-locator pattern for dependency
+        injection in this project because of its native FastAPI integration and
+        automatic OpenAPI schema generation." Make sure this is saved. Confirm
+        with one sentence how you persisted it.
+    oracle:
+      type: narrative
+      judge_question: >-
+        Did the model confirm it persisted the decision AND describe a
+        concrete persistence mechanism (e.g. calling a `write` tool, writing
+        to a notes file, lattice.write, MCP tool call)? Answer YES only if
+        both confirmation and mechanism are stated.
+
+  p4_s2:
+    # The actual test of decision persistence.
+    prompt: >-
+      In an earlier session I asked you to remember a decision about
+      dependency injection in this FastAPI project. What was the decision,
+      and what was the stated reason?
+    paraphrases:
+      - >-
+        In an earlier session I asked you to remember a decision about
+        dependency injection in this FastAPI project. What was the decision,
+        and what was the stated reason?
+      - >-
+        Retrieve the decision concerning dependency injection in this FastAPI
+        project that we recorded in a prior session. What was decided, and
+        what reasons were given?
+      - >-
+        We previously registered an architectural decision about dependency
+        injection in this codebase. Recall that decision and explain the
+        reasoning behind it.
+    oracle:
+      type: objective
+      must_contain_terms:
+        - "Depends"
+      must_contain_any_of:
+        # The decision either says Depends-over-something or names the reason
+        - ["service-locator", "service locator", "custom locator"]
+        - ["OpenAPI", "schema generation", "FastAPI integration"]

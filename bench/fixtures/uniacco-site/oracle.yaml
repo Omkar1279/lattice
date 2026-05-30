@@ -1,0 +1,120 @@
+# uniacco-site fixture — Filled in based on actual Next.js codebase.
+#
+# Schema is identical to bench/fixtures/fastapi/oracle.yaml — see that file
+# for the full documentation of oracle types (objective, narrative, storage).
+
+fixture: uniacco-site
+index_dirs: ["src"]
+
+pairs:
+
+  p1_s1:
+    prompt: >-
+      In this codebase, find the Next.js root layout that all pages render through.
+      Give the file path relative to the repo root and the main exported symbol name.
+    paraphrases:
+      - >-
+        In this codebase, find the Next.js root layout that all pages render through.
+        Give the file path relative to the repo root and the main exported symbol name.
+      - >-
+        Locate the main root layout file in this Next.js project that wraps the entire
+        application tree. Provide the root-relative file path and the primary exported function name.
+      - >-
+        Identify the top-level Next.js layout component which acts as the application's entry
+        shell. Return its file path relative to the root and its main exported symbol.
+    oracle:
+      type: objective
+      must_contain_paths: ["src/app/layout.tsx"]
+      must_contain_terms: ["RootLayout"]
+
+  p1_s2:
+    prompt: >-
+      In an earlier session you found the Next.js root layout that all pages render through.
+      What was the file path, and what is the main exported symbol? Be brief.
+    paraphrases:
+      - >-
+        In an earlier session you found the Next.js root layout that all pages render through.
+        What was the file path, and what is the main exported symbol? Be brief.
+      - >-
+        Recall the Next.js root layout component and its path that you identified in our previous session. Give the relative path and symbol name briefly.
+      - >-
+        You previously located the top-level application root layout. What was the exact symbol name and its root-relative path? Keep it concise.
+    oracle:
+      type: objective
+      must_contain_paths: ["src/app/layout.tsx"]
+      must_contain_terms: ["RootLayout"]
+
+  p2_corpusscale:
+    prompt: >-
+      In this codebase, find where storage utilities (like getting/setting values in cookies, localStorage, or sessionStorage) are implemented.
+      Give the file path and the main class name.
+    paraphrases:
+      - >-
+        In this codebase, find where storage utilities (like getting/setting values in cookies, localStorage, or sessionStorage) are implemented.
+        Give the file path and the main class name.
+      - >-
+        Search this project for the utility class that handles getting and setting values in cookies, localStorage, or sessionStorage.
+        Identify the main class name and its file path.
+      - >-
+        Identify the relative path and class name that manages cookies and storage (localStorage/sessionStorage) access in this codebase.
+    oracle:
+      type: objective
+      must_contain_paths: ["src/utils/storage.js"]
+      must_contain_terms: ["Storage"]
+
+  p3_graphnav:
+    prompt: >-
+      In this codebase, list 3 distinct files (other than its own definition file) that import or use `Storage` from `@Utils/storage`.
+      Give exact file paths relative to the repo root.
+    paraphrases:
+      - >-
+        In this codebase, list 3 distinct files (other than its own definition file) that import or use `Storage` from `@Utils/storage`.
+        Give exact file paths relative to the repo root.
+      - >-
+        Find and list three separate files in this repository (excluding the definition module itself) that import or utilize the `Storage` class.
+        Provide their exact root-relative file paths.
+      - >-
+        Identify 3 different files in the codebase (not including where it is defined) that make use of or import `Storage`.
+        State their exact relative paths.
+    oracle:
+      type: narrative
+      judge_question: >-
+        Did the answer list 3 DISTINCT file paths that are NOT `src/utils/storage.js`?
+        Each path should look like a real path in this repo (under `src/`). Answer YES only if all 3 are present, distinct, and plausible.
+      must_contain_terms: ["Storage"]
+
+  p4_s1:
+    prompt: >-
+      I want you to remember this decision for future sessions: "We chose React Query over SWR for data fetching because of its devtools and stale-while-revalidate semantics."
+      Persist this so a future session can recall it. Confirm in one sentence that you have persisted it and describe HOW you persisted it.
+    paraphrases:
+      - >-
+        I want you to remember this decision for future sessions: "We chose React Query over SWR for data fetching because of its devtools and stale-while-revalidate semantics."
+        Persist this so a future session can recall it. Confirm in one sentence that you have persisted it and describe HOW you persisted it.
+      - >-
+        Please save this architectural decision: "We chose React Query over SWR for data fetching because of its devtools and stale-while-revalidate semantics."
+        Ensure this choice is persisted so a future session can retrieve it. Write a one-sentence confirmation explaining the persistence method.
+      - >-
+        Store the following decision for our upcoming sessions: "We chose React Query over SWR for data fetching because of its devtools and stale-while-revalidate semantics."
+        Make sure this is saved. Confirm with one sentence how you persisted it.
+    oracle:
+      type: narrative
+      judge_question: >-
+        Did the model confirm it persisted the decision AND describe a concrete persistence mechanism (e.g. calling a `write` tool, writing to a notes file, lattice.write, MCP tool call)?
+        Answer YES only if both confirmation and mechanism are stated.
+
+  p4_s2:
+    prompt: >-
+      In an earlier session I asked you to remember a decision about a data-fetching library. What was the decision, and what was the stated reason?
+    paraphrases:
+      - >-
+        In an earlier session I asked you to remember a decision about a data-fetching library. What was the decision, and what was the stated reason?
+      - >-
+        Retrieve the decision concerning data-fetching libraries that we recorded in a prior session. What was decided, and what reasons were given?
+      - >-
+        We previously registered an architectural decision about a data-fetching library in this codebase. Recall that decision and explain the reasoning behind it.
+    oracle:
+      type: objective
+      must_contain_terms: ["React Query", "SWR"]
+      must_contain_any_of:
+        - ["devtools", "stale-while-revalidate", "stale while revalidate"]

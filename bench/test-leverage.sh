@@ -7,53 +7,82 @@
 #
 # Each pair runs an identical prompt twice — once WITH lattice (full subtree
 # indexed, blocking active) and once WITHOUT — then diffs input_tokens,
-# cache_creation_input_tokens, output_tokens, num_turns, total_cost_usd.
+# cache_creation_input_tokens, output_tokens, num_turns, total_cost_usd,
+# AND grades correctness against the fixture's oracle (bench/fixtures/<name>/
+# oracle.yaml). The headline metric is cost-per-correct-answer, not raw cost.
 #
 # Pairs measure scenarios that exercise lattice's documented value props:
 #   1 (cross-session)     : two sessions per variant. Tests whether the
 #                           session-start summary / recall avoids re-Read.
-#   2 (corpus-scale)      : find a concept across the tree. Without lattice
-#                           the model Greps a 700+ file repo and ingests
-#                           verbose match lists; with lattice, recall returns
-#                           a ranked chunk.
-#   3 (graph-nav)         : "who uses X" — without lattice this is grep -rln
-#                           + N Reads; with lattice it's recall +
-#                           recall_expand(mode="callers").
+#   2 (corpus-scale)      : find a named concept across the tree. Without
+#                           lattice the model Greps a 700+ file repo and
+#                           ingests verbose match lists; with lattice,
+#                           recall returns a ranked chunk.
+#   3 (graph-nav)         : "who uses X" for a FIXTURE-SPECIFIC named
+#                           symbol (FastAPI: APIRouter). Without lattice
+#                           this is grep -rln + N Reads; with lattice
+#                           it is recall + recall_expand(mode="callers").
 #   4 (decision-persist)  : session A persists a fact via lattice.write,
 #                           session B asks for it back — without lattice
 #                           the answer is unrecoverable.
 #
+# Prompts and oracles are loaded from bench/fixtures/<fixture>/oracle.yaml
+# so they can be specialized per fixture without editing this script.
+#
 # ENV overrides:
 #   BENCH_REPO_DIR        default /Users/user/Documents/work/uniacco-site
 #   LATTICE_BENCH_PUBLIC  1 → use FastAPI (cloned to ~/.cache/lattice-bench)
-#   BENCH_MODEL           default sonnet
+#   BENCH_MODEL           default claude-sonnet-4-6 (pinned; do NOT use
+#                         alias "sonnet" — it drifts as new models ship)
+#   BENCH_JUDGE_MODEL     default claude-opus-4-7 (for narrative oracles)
 #   BENCH_EFFORT          default medium
 #   BENCH_MAX_BUDGET      default 1.50
 #   BENCH_PAIRS           default "1 2 3 4"
+#   BENCH_RUNS            default 5 (plan calls for 10 on gating runs)
+#   BENCH_ORDER_SEED      default $RANDOM ; pin to reproduce arm ordering
 
 set -eo pipefail
 
 LATTICE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_REPO="/Users/user/Documents/work/uniacco-site"
+DEFAULT_REPO="$HOME/Documents/work/uniacco-site"
 PUBLIC_REPO_URL="https://github.com/fastapi/fastapi.git"
 PUBLIC_REPO_TAG="0.115.0"
 PUBLIC_REPO_DIR="$HOME/.cache/lattice-bench/fastapi"
 
 if [ "${LATTICE_BENCH_PUBLIC:-0}" = "1" ]; then
   BENCH_REPO_DIR="$PUBLIC_REPO_DIR"
-  INDEX_DIRS=("fastapi")
+  FIXTURE_NAME="fastapi"
 else
   BENCH_REPO_DIR="${BENCH_REPO_DIR:-$DEFAULT_REPO}"
-  INDEX_DIRS=("src")
+  FIXTURE_NAME="${BENCH_FIXTURE_NAME:-uniacco-site}"
 fi
+
+ORACLE_FILE="$LATTICE_ROOT/bench/fixtures/$FIXTURE_NAME/oracle.yaml"
+if [ ! -f "$ORACLE_FILE" ]; then
+  echo "ERROR: no oracle file at $ORACLE_FILE — correctness scoring requires one. See bench/fixtures/fastapi/oracle.yaml for the schema." >&2
+  exit 1
+fi
+
+# Load INDEX_DIRS from the oracle file (single source of truth per fixture).
+INDEX_DIRS_RAW=$(python3 -c "
+import yaml, sys
+d = yaml.safe_load(open('$ORACLE_FILE'))
+print(' '.join(d.get('index_dirs') or ['src']))
+")
+read -ra INDEX_DIRS <<< "$INDEX_DIRS_RAW"
 
 RESULTS_DIR="$LATTICE_ROOT/bench/results/leverage-$(date +%Y%m%d-%H%M%S)"
 LOG_FILE="$RESULTS_DIR/harness.log"
-MODEL="${BENCH_MODEL:-sonnet}"
+# Pin to a concrete model ID so reruns are longitudinally comparable.
+# "sonnet" is an alias that resolves to whatever the current Sonnet is — fine
+# for users, fatal for benchmark reproducibility.
+MODEL="${BENCH_MODEL:-claude-sonnet-4-6}"
+export BENCH_JUDGE_MODEL="${BENCH_JUDGE_MODEL:-claude-opus-4-7}"
 EFFORT="${BENCH_EFFORT:-medium}"
 MAX_BUDGET="${BENCH_MAX_BUDGET:-1.50}"
 PAIRS="${BENCH_PAIRS:-1 2 3 4}"
 BENCH_RUNS="${BENCH_RUNS:-5}"
+BENCH_ORDER_SEED="${BENCH_ORDER_SEED:-$RANDOM}"
 
 mkdir -p "$RESULTS_DIR"
 
@@ -185,6 +214,56 @@ db.close()
 
 clear_lattice() { rm -rf "$WORK_REPO/.lattice"; }
 
+# Load a pair's prompt from the fixture oracle YAML so prompts can be
+# fixture-specific (e.g. P3 names APIRouter on FastAPI vs a uniacco symbol
+# on uniacco-site). Fails loud if the key is missing — the caller relies on
+# the prompt being non-empty. Supports query paraphrasing confounder control
+# if 'paraphrases' list is present in the oracle.yaml.
+load_prompt() {
+  local pair_key="$1"
+  local run_num="${2:-1}"
+  python3 -c "
+import yaml, sys
+d = yaml.safe_load(open('$ORACLE_FILE'))
+p = (d.get('pairs') or {}).get('$pair_key') or {}
+paraphrases = p.get('paraphrases')
+if isinstance(paraphrases, list) and len(paraphrases) > 0:
+    idx = ($run_num - 1) % len(paraphrases)
+    prompt = paraphrases[idx]
+else:
+    prompt = p.get('prompt')
+if not prompt:
+    sys.stderr.write('load_prompt: missing prompt or paraphrases for $pair_key in $ORACLE_FILE\n')
+    sys.exit(2)
+print(prompt.strip())
+"
+}
+
+# Grade a result.json against the fixture's oracle for this pair. Appends
+# _correctness to the JSON; never fails the run (scoring is best-effort).
+# See bench/lib/score_answer.py for the schema.
+score_answer() {
+  local pair_key="$1" outfile="$2"
+  [ -f "$outfile" ] || return 0
+  PYTHONPATH="$LATTICE_ROOT" python3 -m bench.lib.score_answer \
+    "$ORACLE_FILE" "$pair_key" "$outfile" >>"$LOG_FILE" 2>&1 || \
+    log "    ⚠ score_answer failed (non-fatal) for $pair_key"
+}
+
+# Deterministically shuffle "with without" → e.g. "without with" given a
+# (seed, run_num) pair. Eliminates the constant with-then-without ordering
+# bias from the previous harness. Same (seed, run) → same order across reruns.
+variant_order() {
+  local run_num="$1"
+  python3 -c "
+import random
+r = random.Random(($BENCH_ORDER_SEED * 100003) + $run_num)
+xs = ['with', 'without']
+r.shuffle(xs)
+print(' '.join(xs))
+"
+}
+
 # Run a single prompt with or without the plugin and record metrics
 run_variant() {
   local variant="$1" pair="$2" prompt="$3" run_num="$4"
@@ -237,11 +316,25 @@ PYEOF
   cache_read=$(jq -r '.usage.cache_read_input_tokens // 0' "$outfile")
   out_tok=$(jq -r '.usage.output_tokens // 0' "$outfile")
 
-  log "    cost=\$$cost turns=$turns input=$in_tok cache_create=$cache_create cache_read=$cache_read output=$out_tok dur=${dur}s"
+  # Grade correctness against the fixture oracle. Pair key is the prefix
+  # of the result filename ("p2_corpusscale", "p1_s1", etc.) — same as $pair.
+  score_answer "$pair" "$outfile"
+  local correct
+  correct=$(jq -r '._correctness.passed // "unscored"' "$outfile")
+
+  log "    cost=\$$cost turns=$turns input=$in_tok cache_create=$cache_create cache_read=$cache_read output=$out_tok correct=$correct dur=${dur}s"
 }
 
 # Sum two single-session JSONs into a synthetic combined record so the
 # summary loop can treat the cross-session pair uniformly.
+#
+# The combined record inherits its `_correctness` from session B (S2). For
+# cross-session and decision-persistence pairs, S2 is the test — it asks the
+# model to recover what S1 established. S1's correctness is meaningful in
+# its own row (p1_s1, p4_s1); the combined row's verdict is S2's. Without
+# this propagation, the headline $/correct column is permanently "—" for
+# p1_crosssession and p4_decisionpersist — i.e. silently absent from the
+# rows that pairs 1 and 4 exist to measure.
 sum_sessions() {
   local f1="$1" f2="$2" out="$3" note="${4:-S1+S2}"
   [ -f "$f1" ] && [ -f "$f2" ] || return 0
@@ -263,77 +356,96 @@ combined = {
     "telemetry": telemetry,
     "_synthetic": note,
 }
+# Propagate S2's correctness verdict into the combined record. If S2 wasn't
+# scored, fall back to S1 only if it was — the goal is to never silently
+# lose a correctness signal we have.
+b_corr = b.get("_correctness")
+a_corr = a.get("_correctness")
+if b_corr and b_corr.get("passed") in (0, 1):
+    combined["_correctness"] = dict(b_corr)
+    combined["_correctness"]["inherited_from"] = "S2"
+elif a_corr and a_corr.get("passed") in (0, 1):
+    combined["_correctness"] = dict(a_corr)
+    combined["_correctness"]["inherited_from"] = "S1 (S2 unscored)"
 json.dump(combined, open(out, "w"), indent=2)
 PYEOF
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PAIRS
+#
+# Prompts now live in bench/fixtures/<fixture>/oracle.yaml — see load_prompt().
+# Each per-run cycle: prep_lattice_tree → run-variant-A → clear → run-variant-B,
+# where variant order (A=with B=without OR A=without B=with) is shuffled per
+# run from BENCH_ORDER_SEED. This removes the constant with-then-without
+# ordering bias of the previous harness (cache-warmup effects no longer favour
+# whichever variant ran first).
 # ─────────────────────────────────────────────────────────────────────────────
 
-# PAIR 1 — cross-session continuity. Two sessions with --no-session-persistence
-# so the prompt cache cannot carry over. WITHOUT lattice, S2 must rediscover
-# what S1 already explored; WITH lattice, the index persists.
-P1_S1='Look at this codebase and tell me, in one sentence, what the main application entry / root file does. Include the file path.'
-P1_S2='What was the file path of the application entry / root file in this codebase? Be brief.'
+# Helper: run a single variant for a multi-session pair (p1, p4). Prepares the
+# vault if this variant uses lattice; clears it otherwise.
+_run_variant_multisession() {
+  local variant="$1" pair_s1="$2" pair_s2="$3" prompt_s1="$4" prompt_s2="$5" run_num="$6" pair_combined="$7"
+  if [ "$variant" = "with" ]; then
+    prep_lattice_tree
+    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
+    run_variant "with" "$pair_s1" "$prompt_s1" "$run_num" || true
+    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
+    run_variant "with" "$pair_s2" "$prompt_s2" "$run_num" || true
+    [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
+      cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/${pair_combined}__hook__run${run_num}.log"
+    clear_lattice
+  else
+    clear_lattice
+    run_variant "without" "$pair_s1" "$prompt_s1" "$run_num" || true
+    run_variant "without" "$pair_s2" "$prompt_s2" "$run_num" || true
+  fi
+  sum_sessions "$RESULTS_DIR/${pair_s1}__${variant}__run${run_num}.json" \
+               "$RESULTS_DIR/${pair_s2}__${variant}__run${run_num}.json" \
+               "$RESULTS_DIR/${pair_combined}__${variant}__run${run_num}.json"
+}
+
+# Helper: run a single variant for a single-session pair (p2, p3).
+_run_variant_singlesession() {
+  local variant="$1" pair="$2" prompt="$3" run_num="$4"
+  if [ "$variant" = "with" ]; then
+    prep_lattice_tree
+    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
+    run_variant "with" "$pair" "$prompt" "$run_num" || true
+    [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
+      cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/${pair}__hook__run${run_num}.log"
+    clear_lattice
+  else
+    clear_lattice
+    run_variant "without" "$pair" "$prompt" "$run_num" || true
+  fi
+}
 
 run_pair1_crosssession() {
   log ""
   log "═══ PAIR 1 — cross-session continuity ═══"
   for r in $(seq 1 "$BENCH_RUNS"); do
-    log "--- Run $r/$BENCH_RUNS ---"
-    prep_lattice_tree
-    # Reset telemetry log before first session
-    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
-    run_variant "with" "p1_s1" "$P1_S1" "$r" || true
-    
-    # We do not reset the lattice tree or telemetry log between S1 and S2
-    # but we can optionally reset telemetry.log to isolate S2 telemetry,
-    # or keep it. Let's reset it so S2 has its own telemetry, merged by sum_sessions.
-    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
-    run_variant "with" "p1_s2" "$P1_S2" "$r" || true
-    
-    [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
-      cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/p1__hook__run${r}.log"
-    clear_lattice
-    run_variant "without" "p1_s1" "$P1_S1" "$r" || true
-    run_variant "without" "p1_s2" "$P1_S2" "$r" || true
-    for v in with without; do
-      sum_sessions "$RESULTS_DIR/p1_s1__${v}__run${r}.json" \
-                   "$RESULTS_DIR/p1_s2__${v}__run${r}.json" \
-                   "$RESULTS_DIR/p1_crosssession__${v}__run${r}.json"
+    log "--- Run $r/$BENCH_RUNS (order: $(variant_order $r)) ---"
+    local p1_s1 p1_s2
+    p1_s1=$(load_prompt "p1_s1" "$r")
+    p1_s2=$(load_prompt "p1_s2" "$r")
+    for v in $(variant_order $r); do
+      _run_variant_multisession "$v" "p1_s1" "p1_s2" "$p1_s1" "$p1_s2" "$r" "p1_crosssession"
     done
   done
 }
 
-# PAIR 2 — corpus-scale. The model has to find a specific concept across a
-# 700+ file repo. Without lattice it Greps and ingests the long match list;
-# with lattice, recall returns a small ranked set.
-P2_PROMPT='In this codebase, find where the global authentication or user-session context is initialised and provided to the rest of the app. Give me the file path and a one-sentence summary of how it works. Be efficient — minimise tool calls.'
-
-# PAIR 3 — graph navigation. "Who uses X" is grep -rln + N Reads without
-# lattice; with lattice it is recall + recall_expand(mode="callers").
-P3_PROMPT='Find a widely-imported component or utility in this codebase. Tell me its name, its path, and list 3 other files that import or use it.'
-
-# PAIR 4 — decision persistence. S1 asks the model to remember a decision;
-# S2 (separate session) asks it back. Without lattice, S2 has no way to
-# know — the only "memory" is whether the model wrote a stray .md file.
-P4_S1='I want you to remember this decision for future sessions: "We chose React Query over SWR for data fetching because of its devtools and stale-while-revalidate semantics." Persist this so a future session can recall it. Confirm in one sentence.'
-P4_S2='In an earlier session I asked you to remember a decision about a data-fetching library. What was the decision, and what was the stated reason?'
-
 run_pair_simple() {
-  local pair="$1" prompt="$2"
+  local pair="$1"
   log ""
   log "═══ ${pair} ═══"
   for r in $(seq 1 "$BENCH_RUNS"); do
-    log "--- Run $r/$BENCH_RUNS ---"
-    prep_lattice_tree
-    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
-    run_variant "with" "$pair" "$prompt" "$r" || true
-    [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
-      cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/${pair}__hook__run${r}.log"
-    clear_lattice
-    run_variant "without" "$pair" "$prompt" "$r" || true
+    log "--- Run $r/$BENCH_RUNS (order: $(variant_order $r)) ---"
+    local prompt
+    prompt=$(load_prompt "$pair" "$r")
+    for v in $(variant_order $r); do
+      _run_variant_singlesession "$v" "$pair" "$prompt" "$r"
+    done
   done
 }
 
@@ -341,24 +453,12 @@ run_pair4_decisionpersist() {
   log ""
   log "═══ PAIR 4 — decision persistence ═══"
   for r in $(seq 1 "$BENCH_RUNS"); do
-    log "--- Run $r/$BENCH_RUNS ---"
-    prep_lattice_tree
-    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
-    run_variant "with" "p4_s1" "$P4_S1" "$r" || true
-    
-    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
-    run_variant "with" "p4_s2" "$P4_S2" "$r" || true
-    
-    [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
-      cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/p4__hook__run${r}.log"
-    clear_lattice
-    run_variant "without" "p4_s1" "$P4_S1" "$r" || true
-    run_variant "without" "p4_s2" "$P4_S2" "$r" || true
-    for v in with without; do
-      sum_sessions "$RESULTS_DIR/p4_s1__${v}__run${r}.json" \
-                   "$RESULTS_DIR/p4_s2__${v}__run${r}.json" \
-                   "$RESULTS_DIR/p4_decisionpersist__${v}__run${r}.json" \
-                   "S1+S2 — inspect S2 output to judge correctness, not just cost"
+    log "--- Run $r/$BENCH_RUNS (order: $(variant_order $r)) ---"
+    local p4_s1 p4_s2
+    p4_s1=$(load_prompt "p4_s1" "$r")
+    p4_s2=$(load_prompt "p4_s2" "$r")
+    for v in $(variant_order $r); do
+      _run_variant_multisession "$v" "p4_s1" "p4_s2" "$p4_s1" "$p4_s2" "$r" "p4_decisionpersist"
     done
   done
 }
@@ -369,8 +469,9 @@ run_pair4_decisionpersist() {
 
 log "═══ LEVERAGE BENCHMARK ═══"
 log "Lattice root: $LATTICE_ROOT"
-log "Model:        $MODEL ($EFFORT)"
-log "Pairs:        $PAIRS"
+log "Fixture:      $FIXTURE_NAME  (oracle: $ORACLE_FILE)"
+log "Model:        $MODEL ($EFFORT)   judge: $BENCH_JUDGE_MODEL"
+log "Pairs:        $PAIRS  runs/pair: $BENCH_RUNS  order_seed: $BENCH_ORDER_SEED"
 log "Results:      $RESULTS_DIR"
 
 ensure_repo
@@ -378,190 +479,21 @@ ensure_repo
 for p in $PAIRS; do
   case "$p" in
     1) run_pair1_crosssession ;;
-    2) run_pair_simple "p2_corpusscale" "$P2_PROMPT" ;;
-    3) run_pair_simple "p3_graphnav"    "$P3_PROMPT" ;;
+    2) run_pair_simple "p2_corpusscale" ;;
+    3) run_pair_simple "p3_graphnav" ;;
     4) run_pair4_decisionpersist ;;
     *) log "Unknown pair: $p" ;;
   esac
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SUMMARY
+# SUMMARY — median/IQR + Mann-Whitney U + cost-per-correct headline.
+# See bench/lib/summarize_leverage.py for the methodology rationale.
 # ─────────────────────────────────────────────────────────────────────────────
 
 log ""
-python3 - "$RESULTS_DIR" <<'PYEOF' | tee -a "$LOG_FILE"
-import os
-import sys
-import glob
-import json
-import math
-
-results_dir = sys.argv[1]
-
-# Find all run files
-files = glob.glob(os.path.join(results_dir, "*__*__run*.json"))
-
-# Group files by (pair, variant)
-groups = {}
-for f in files:
-    base = os.path.basename(f)
-    parts = base.rsplit(".", 1)[0].split("__")
-    if len(parts) != 3:
-        continue
-    pair, variant, run_str = parts
-    groups.setdefault((pair, variant), []).append(f)
-
-# Student's t-value for df = n - 1 = 4 at 95% confidence level
-T_VALUE = 2.776
-
-def compute_stats(values):
-    n = len(values)
-    if n == 0:
-        return 0.0, 0.0
-    mean = sum(values) / n
-    if n < 2:
-        return mean, 0.0
-    variance = sum((x - mean) ** 2 for x in values) / (n - 1)
-    std_err = math.sqrt(variance) / math.sqrt(n)
-    ci = T_VALUE * std_err
-    return mean, ci
-
-print("═══ LEVERAGE TABLE (n=5, mean ± 95% CI) ═══")
-print(f"{'pair':<20} | {'variant':<7} | {'cost ($)':<18} | {'turns':<12} | {'input_tok':<18} | {'cache_create':<18} | {'cache_read':<18} | {'cache_hit %':<16} | {'output':<15} | {'recall_expand modes'}")
-print("-" * 175)
-
-# Sort keys for consistent display
-sorted_keys = sorted(groups.keys(), key=lambda x: (x[0], x[1] == 'without'))
-
-for pair, variant in sorted_keys:
-    group_files = groups[(pair, variant)]
-    costs, turns, inputs, creations, reads, hits, outputs = [], [], [], [], [], [], []
-    telemetry_totals = {}
-    
-    n_runs = len(group_files)
-    
-    for gf in group_files:
-        try:
-            data = json.load(open(gf))
-            costs.append(data.get("total_cost_usd", 0.0))
-            turns.append(data.get("num_turns", 0))
-            
-            usage = data.get("usage", {})
-            in_tok = usage.get("input_tokens", 0)
-            cc = usage.get("cache_creation_input_tokens", 0)
-            cr = usage.get("cache_read_input_tokens", 0)
-            out_tok = usage.get("output_tokens", 0)
-            
-            inputs.append(in_tok)
-            creations.append(cc)
-            reads.append(cr)
-            outputs.append(out_tok)
-            
-            denom = cr + cc
-            hit_ratio = (cr / denom * 100.0) if denom > 0 else 0.0
-            hits.append(hit_ratio)
-            
-            telemetry = data.get("telemetry", {})
-            for mode, count in telemetry.items():
-                telemetry_totals[mode] = telemetry_totals.get(mode, 0) + count
-        except Exception as e:
-            pass
-            
-    mean_cost, ci_cost = compute_stats(costs)
-    mean_turns, ci_turns = compute_stats(turns)
-    mean_in, ci_in = compute_stats(inputs)
-    mean_cc, ci_cc = compute_stats(creations)
-    mean_cr, ci_cr = compute_stats(reads)
-    mean_hit, ci_hit = compute_stats(hits)
-    mean_out, ci_out = compute_stats(outputs)
-    
-    # Format recall_expand modes representation
-    mode_parts = []
-    if variant == "with" and telemetry_totals:
-        for mode in sorted(telemetry_totals.keys()):
-            avg_count = telemetry_totals[mode] / n_runs
-            mode_parts.append(f"{mode}:{avg_count:.1f}")
-        modes_str = ", ".join(mode_parts)
-    elif variant == "with":
-        modes_str = "none"
-    else:
-        modes_str = "-"
-        
-    cost_str = f"{mean_cost:.4f} ± {ci_cost:.4f}"
-    turns_str = f"{mean_turns:.1f} ± {ci_turns:.1f}"
-    in_str = f"{mean_in:.1f} ± {ci_in:.1f}"
-    cc_str = f"{mean_cc:.1f} ± {ci_cc:.1f}"
-    cr_str = f"{mean_cr:.1f} ± {ci_cr:.1f}"
-    hit_str = f"{mean_hit:.1f}% ± {ci_hit:.1f}%"
-    out_str = f"{mean_out:.1f} ± {ci_out:.1f}"
-    
-    print(f"{pair:<20} | {variant:<7} | {cost_str:<18} | {turns_str:<12} | {in_str:<18} | {cc_str:<18} | {cr_str:<18} | {hit_str:<16} | {out_str:<15} | {modes_str}")
-
-# Compute deltas comparing the mean of with vs without
-pairs = set(k[0] for k in groups.keys())
-print("\n═══ PER-PAIR DELTAS (with vs without mean comparisons) ═══")
-for p in sorted(pairs):
-    if (p, "with") not in groups or (p, "without") not in groups:
-        continue
-    
-    with_files = groups[(p, "with")]
-    without_files = groups[(p, "without")]
-    
-    w_costs = [json.load(open(f)).get("total_cost_usd", 0.0) for f in with_files]
-    wo_costs = [json.load(open(f)).get("total_cost_usd", 0.0) for f in without_files]
-    
-    w_turns = [json.load(open(f)).get("num_turns", 0) for f in with_files]
-    wo_turns = [json.load(open(f)).get("num_turns", 0) for f in without_files]
-    
-    w_inputs = [json.load(open(f)).get("usage", {}).get("input_tokens", 0) for f in with_files]
-    wo_inputs = [json.load(open(f)).get("usage", {}).get("input_tokens", 0) for f in without_files]
-    
-    w_cc = [json.load(open(f)).get("usage", {}).get("cache_creation_input_tokens", 0) for f in with_files]
-    wo_cc = [json.load(open(f)).get("usage", {}).get("cache_creation_input_tokens", 0) for f in without_files]
-    
-    w_cr = [json.load(open(f)).get("usage", {}).get("cache_read_input_tokens", 0) for f in with_files]
-    wo_cr = [json.load(open(f)).get("usage", {}).get("cache_read_input_tokens", 0) for f in without_files]
-    
-    w_outputs = [json.load(open(f)).get("usage", {}).get("output_tokens", 0) for f in with_files]
-    wo_outputs = [json.load(open(f)).get("usage", {}).get("output_tokens", 0) for f in without_files]
-
-    w_eff = [i + c for i, c in zip(w_inputs, w_cc)]
-    wo_eff = [i + c for i, c in zip(wo_inputs, wo_cc)]
-
-    def pct(w, wo): return 0.0 if wo == 0 else 100.0 * (wo - w) / wo
-    
-    m_w_cost, ci_w_cost = compute_stats(w_costs)
-    m_wo_cost, ci_wo_cost = compute_stats(wo_costs)
-    
-    m_w_turns, ci_w_turns = compute_stats(w_turns)
-    m_wo_turns, ci_wo_turns = compute_stats(wo_turns)
-    
-    m_w_in, ci_w_in = compute_stats(w_inputs)
-    m_wo_in, ci_wo_in = compute_stats(wo_inputs)
-    
-    m_w_cc, ci_w_cc = compute_stats(w_cc)
-    m_wo_cc, ci_wo_cc = compute_stats(wo_cc)
-
-    m_w_cr, ci_w_cr = compute_stats(w_cr)
-    m_wo_cr, ci_wo_cr = compute_stats(wo_cr)
-
-    m_w_eff, ci_w_eff = compute_stats(w_eff)
-    m_wo_eff, ci_wo_eff = compute_stats(wo_eff)
-    
-    m_w_out, ci_w_out = compute_stats(w_outputs)
-    m_wo_out, ci_wo_out = compute_stats(wo_outputs)
-    
-    print(f"{p}:")
-    print(f"  cost           : with={m_w_cost:.4f} ± {ci_w_cost:.4f}  without={m_wo_cost:.4f} ± {ci_wo_cost:.4f}  saved={pct(m_w_cost, m_wo_cost):+6.1f}%")
-    print(f"  turns          : with={m_w_turns:.1f} ± {ci_w_turns:.1f}  without={m_wo_turns:.1f} ± {ci_wo_turns:.1f}  saved={pct(m_w_turns, m_wo_turns):+6.1f}%")
-    print(f"  input_tokens   : with={m_w_in:.1f} ± {ci_w_in:.1f}  without={m_wo_in:.1f} ± {ci_wo_in:.1f}  saved={pct(m_w_in, m_wo_in):+6.1f}%")
-    print(f"  cache_creation : with={m_w_cc:.1f} ± {ci_w_cc:.1f}  without={m_wo_cc:.1f} ± {ci_wo_cc:.1f}  saved={pct(m_w_cc, m_wo_cc):+6.1f}%")
-    print(f"  cache_read     : with={m_w_cr:.1f} ± {ci_w_cr:.1f}  without={m_wo_cr:.1f} ± {ci_wo_cr:.1f}  saved={pct(m_w_cr, m_wo_cr):+6.1f}%")
-    print(f"  effective_in   : with={m_w_eff:.1f} ± {ci_w_eff:.1f}  without={m_wo_eff:.1f} ± {ci_wo_eff:.1f}  saved={pct(m_w_eff, m_wo_eff):+6.1f}%")
-    print(f"  output_tokens  : with={m_w_out:.1f} ± {ci_w_out:.1f}  without={m_wo_out:.1f} ± {ci_wo_out:.1f}  saved={pct(m_w_out, m_wo_out):+6.1f}%")
-    print()
-PYEOF
+PYTHONPATH="$LATTICE_ROOT" python3 -m bench.lib.summarize_leverage \
+  "$RESULTS_DIR" | tee -a "$LOG_FILE"
 
 log "═══ HOOK ACTIVITY (WITH variant) ═══"
 for r in $(seq 1 "$BENCH_RUNS"); do
