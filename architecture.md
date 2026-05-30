@@ -10,26 +10,26 @@ Lattice uses a dual-process architecture consisting of a **Thin CLI Client** and
 
 ```mermaid
 graph TD
-    subgraph Claude Code Environment
-        CC[Claude Code] <--> |MCP Protocol| Daemon[Lattice FastMCP Daemon]
-        CC --> |Executes Hook| CLI[Lattice CLI Client]
+    subgraph "Claude Code Environment"
+        CC["Claude Code"] <-->|"MCP Protocol"| Daemon["Lattice FastMCP Daemon"]
+        CC -->|"Executes Hook"| CLI["Lattice CLI Client"]
     end
 
-    subgraph Lattice Background Daemon [Port: 37700 + UID % 100]
-        CLI --> |HTTP POST /hook| HTTP[HTTP Hook Handler]
-        HTTP --> HookEngine[Hook Logic Engine]
-        Daemon <--> |FastMCP Tools| ToolEngine[Tool Logic Engine]
+    subgraph "Lattice Background Daemon [Port: 37700 + UID % 100]"
+        CLI -->|"HTTP POST /hook"| HTTP["HTTP Hook Handler"]
+        HTTP --> HookEngine["Hook Logic Engine"]
+        Daemon <-->|"FastMCP Tools"| ToolEngine["Tool Logic Engine"]
         
-        subgraph AI & ML Engines (Lazy Loaded)
-            TE[FastEmbed Embedder]
-            CE[Text Cross-Encoder Reranker]
-            TS[Tree-Sitter AST Parsers]
+        subgraph "AI & ML Engines (Lazy Loaded)"
+            TE["FastEmbed Embedder"]
+            CE["Text Cross-Encoder Reranker"]
+            TS["Tree-Sitter AST Parsers"]
         end
         
-        subgraph Storage Layer
-            DB[(SQLite Index & Vector DB)]
-            FTS[FTS5 Search Index]
-            VEC[sqlite-vec Vector Index]
+        subgraph "Storage Layer"
+            DB[("SQLite Index & Vector DB")]
+            FTS["FTS5 Search Index"]
+            VEC["sqlite-vec Vector Index"]
         end
     end
 
