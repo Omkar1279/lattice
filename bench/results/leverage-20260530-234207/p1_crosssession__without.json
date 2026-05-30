@@ -1,0 +1,11 @@
+{
+  "total_cost_usd": 0.16996995,
+  "num_turns": 16,
+  "usage": {
+    "input_tokens": 17,
+    "cache_creation_input_tokens": 18383,
+    "cache_read_input_tokens": 263219,
+    "output_tokens": 1397
+  },
+  "_synthetic": "S1+S2"
+}
