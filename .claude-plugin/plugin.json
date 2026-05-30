@@ -13,7 +13,8 @@
       "args": ["mcp-server"],
       "env": {
         "LATTICE_EMBEDDINGS": "off",
-        "LATTICE_VAULT_DIR": ".lattice"
+        "LATTICE_VAULT_DIR": ".lattice",
+        "LATTICE_HIPPORAG": "on"
       }
     }
   },

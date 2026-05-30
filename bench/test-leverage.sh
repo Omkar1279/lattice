@@ -68,7 +68,7 @@ log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG_FILE"; }
 # --dangerously-skip-permissions and may write files (esp. pair 4 without
 # lattice) — can NEVER touch the user's real working tree.
 WORK_REPO=""
-cleanup() { [ -n "$WORK_REPO" ] && [ "${WORK_REPO#/tmp/}" != "$WORK_REPO" ] && rm -rf "$WORK_REPO"; }
+cleanup() { [ -n "$WORK_REPO" ] && [ "${WORK_REPO#/tmp/}" != "$WORK_REPO" ] && rm -rf "$WORK_REPO"; true; }
 trap cleanup EXIT
 
 ensure_repo() {
