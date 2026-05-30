@@ -25,6 +25,10 @@ Every benchmark has been cleanly ported and executed on the Python codebase. R@K
 | **RAGAS Triad Evaluation** | mean context_precision | **0.558** | Matches TS identically |
 | | mean faithfulness | **0.327** | Matches TS identically |
 | | mean answer_relevance | **0.136** | Matches TS identically |
+| **5. Leverage A/B (FastAPI)** | Graph Navigation input savings | **+92.2%** | TS: n/a (Python exclusive) |
+| | Graph Navigation cost savings | **+17.4%** | TS: n/a (Python exclusive) |
+| **6. Leverage A/B (Private TS)**| Corpus-Scale cost savings | **+24.4%** | TS Base: -19.3% (worse) |
+| | Cross-Session cost savings | **+14.1%** | TS Base: -3.4% (worse) |
 
 ---
 
@@ -125,3 +129,28 @@ Calculates faithfulness, answer relevance, and context precision on a synthetic 
 
 Raw run: [`bench/results/ragas.json`](bench/results/ragas.json).
 Reproduce: `uv run python bench/runners/ragas.py`
+
+---
+
+## Leverage A/B Benchmark (HippoRAG Isolation)
+
+**Headline**: Evaluating `LATTICE_HIPPORAG=on` in complete isolation on both public and private repository fixtures demonstrated exceptional cost leverage and cache token economy compared to baseline baselines.
+
+### 📊 Metric Deltas (HippoRAG vs Baseline)
+
+#### 1. Public Fixture: `fastapi` (44 Python Files)
+*   **Pair 3 (Graph Navigation)**: Input tokens saved **+92.2%** (6 vs 77 tokens), output tokens saved **+30.3%** (564 vs 809 tokens), execution turns reduced from **6 to 4**, and query cost reduced by **+17.4%** ($0.0608 vs $0.0736).
+*   *Verdict*: Personalized PageRank on relational AST edges maps module dependencies perfectly, eliminating multiple grepping/reading turns.
+
+#### 2. Private Fixture: `uniacco-site` (695 TypeScript Files)
+*   **Pair 1 (Cross-Session)**: Query cost saved **+14.1%** ($0.1459 vs $0.1700), output tokens saved **+25.3%** (1,044 vs 1,397), session turns reduced from **16 down to 12**.
+*   **Pair 2 (Corpus-Scale)**: Query cost saved **+24.4%** ($0.1999 vs $0.2644), cache creation tokens saved **+35.1%** (14,041 vs 21,647), session turns reduced from **25 down to 18**.
+
+### ⚔️ Python HippoRAG vs. TypeScript Version Baseline
+*   **Pair 1 (Cross-Session)**: The TS baseline suffered a **-3.4% cost loss**. Python HippoRAG achieved **+14.1% cost savings**, reducing turns from **16 to 12**.
+*   **Pair 2 (Corpus-Scale)**: The TS baseline suffered a **-19.3% cost loss** due to model over-engagement (27 turns). Python HippoRAG PPR seed expansion is highly precise, resulting in a **+24.4% cost win** (18 turns).
+
+Raw runs: `bench/results/leverage-20260530-233131/` and `bench/results/leverage-20260530-234207/`.
+OODA analysis: [`bench/results/OODA_ANALYSIS.md`](bench/results/OODA_ANALYSIS.md)
+Four-way comparison: [`bench/results/FOUR_WAY_COMPARISON.md`](bench/results/FOUR_WAY_COMPARISON.md)
+Reproduce: `BENCH_REPO_DIR=<repo> ./bench/test-leverage.sh`
