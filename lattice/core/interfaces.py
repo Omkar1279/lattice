@@ -26,22 +26,31 @@ class Chunk:
     last_validated_at: str = ''
     supersedes: Optional[str] = None
     superseded_by: Optional[str] = None
+    expansion_queries: Optional[str] = None
     pinned: bool = False
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Chunk:
+        tags_raw = data.get('tags')
+        if tags_raw is None:
+            tags = []
+        elif isinstance(tags_raw, str):
+            tags = tags_raw.split(',') if tags_raw else []
+        else:
+            tags = list(tags_raw)
         return cls(
             id=data['id'],
             heading=data.get('heading', ''),
             body=data.get('body', ''),
             source=data.get('source', 'auto_capture'),
             path=data.get('path', ''),
-            tags=data.get('tags', []),
+            tags=tags,
             created_at=data.get('created_at', ''),
             last_seen_at=data.get('last_seen_at', ''),
             last_validated_at=data.get('last_validated_at', ''),
             supersedes=data.get('supersedes'),
             superseded_by=data.get('superseded_by'),
+            expansion_queries=data.get('expansion_queries'),
             pinned=bool(data.get('pinned', 0)),
         )
 

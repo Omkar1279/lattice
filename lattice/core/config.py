@@ -20,7 +20,7 @@ class LatticeConfig:
     block_min_chars: int = field(default_factory=lambda: int(os.environ.get('LATTICE_BLOCK_MIN_CHARS', '40000')))
     retention_days: int = field(default_factory=lambda: int(os.environ.get('LATTICE_RETENTION_DAYS', '365')))
     autosummary: bool = field(default_factory=lambda: os.environ.get('LATTICE_AUTOSUMMARY') != 'off')
-    embed_model: str = field(default_factory=lambda: os.environ.get('LATTICE_EMBED_MODEL', 'nomic-ai/nomic-embed-text-v1.5'))
+    embed_model: str = field(default_factory=lambda: os.environ.get('LATTICE_EMBED_MODEL', 'BAAI/bge-small-en-v1.5'))
     rerank_model: str = field(default_factory=lambda: os.environ.get('LATTICE_RERANK_MODEL', 'mixedbread-ai/mxbai-rerank-xsmall-v2'))
 
 

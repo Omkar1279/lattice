@@ -27,7 +27,7 @@ def vault():
 
 class FakeEmbedder(NullEmbedder):
     def embed(self, text: str):
-        return [0.1] * 768
+        return [0.1] * 384
 
 
 def test_semantic_first_insert_lands_row(vault, monkeypatch):

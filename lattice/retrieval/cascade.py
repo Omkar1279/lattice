@@ -169,6 +169,7 @@ class CascadeRetrievalPipeline(RetrievalPipeline):
         self._scorer = scorer
 
     def retrieve(self, query: str, **kwargs: Any) -> List[RetrievalResult]:
+        import os
         now_ts = time.time() * 1000
         kind = kwargs.get('kind', 'auto')
         path_scope = kwargs.get('path_scope')
@@ -184,18 +185,45 @@ class CascadeRetrievalPipeline(RetrievalPipeline):
             if symbol_hits:
                 return packer.pack(symbol_hits, now_ts)
 
-        # Stage 2: Multi-strategy retrieval
+        # Stage 2: Parallel BM25 + semantic + ColBERT + HippoRAG
+        embeddings_on = os.environ.get("LATTICE_EMBEDDINGS") == "on"
+        colbert_on = os.environ.get("LATTICE_COLBERT") == "on"
+        hipporag_on = os.environ.get("LATTICE_HIPPORAG") == "on"
         source_filter = SOURCE_FILTERS.get(kind)
-        ranked_lists = [
-            s.search(query, 15, path_scope, source_filter)
-            for s in self._search_strategies
-        ]
+        
+        db = self._symbol_resolver._db
 
-        # Stage 3: Fusion + Reranking
+        # BM25 Search Strategy
+        bm25_hits = BM25SearchStrategy(db).search(query, 15, path_scope, source_filter)
+        
+        # Semantic Search Strategy
+        semantic_hits = []
+        if embeddings_on:
+            semantic_hits = SemanticSearchStrategy(db).search(query, 10, path_scope, source_filter)
+            
+        # ColBERT Search Strategy
+        colbert_hits = []
+        if colbert_on:
+            from lattice.retrieval.colbert import search_colbert
+            colbert_hits = search_colbert(db, query, 10)
+            
+        # HippoRAG Search Strategy
+        hippo_hits = []
+        if hipporag_on:
+            from lattice.retrieval.hipporag import hipporag_retrieve
+            hippo_hits = hipporag_retrieve(db, query, 10)
+            
+        ranked_lists = [bm25_hits, semantic_hits, colbert_hits, hippo_hits]
+
+        # Stage 3: Fusion
         fused = self._fuser.fuse(ranked_lists, since_ts, source_filter, now_ts)
-        reranked = self._reranker.rerank(query, fused[:30])
+        
+        # Stage 4: Cross-encoder rerank (top 50 -> top 10)
+        from lattice.retrieval.reranker import rerank
+        reranked = rerank(query, fused[:50], 10)
 
-        return packer.pack(reranked[:10], now_ts)
+        # Stage 5: Pack to token budget
+        return packer.pack(reranked, now_ts)
 
     def _resolve_symbols(self, query: str, path_scope: Optional[str]) -> List[Chunk]:
         candidates = extract_identifiers(query)
