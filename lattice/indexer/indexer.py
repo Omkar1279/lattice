@@ -229,5 +229,13 @@ def reindex_repo(vault: Any, repo_root: str) -> None:
     for file_path in files_to_index:
         index_file(vault, file_path, repo_root, pending_edges)
         
+    # Resolve and write edges
+    from lattice.indexer.graph import resolve_and_write_edges
+    for pending in pending_edges:
+        try:
+            resolve_and_write_edges(vault, pending['chunk_id'], pending['file_path'], pending['raw_edges'], repo_root)
+        except Exception:
+            pass
+        
     vault.db.commit()
 

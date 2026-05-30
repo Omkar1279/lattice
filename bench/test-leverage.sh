@@ -105,13 +105,11 @@ prep_lattice_tree() {
   rm -rf .lattice
   mkdir -p .lattice/log .lattice/notes
 
-  # Initialise schema via a one-shot MCP handshake
-  echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"setup","version":"1.0"}}}' \
-    | LATTICE_VAULT_DIR=.lattice node "$LATTICE_ROOT/dist/server.js" >/dev/null 2>&1 &
-  local pid=$!
-  sleep 2
-  kill $pid 2>/dev/null || true
-  wait $pid 2>/dev/null || true
+  # Schema is automatically initialised in Python when opening the vault.
+  python3 -c "
+from lattice.storage.vault import open_vault
+open_vault('$WORK_REPO/.lattice').close()
+"
 
   local dirs_json
   dirs_json=$(printf '"%s",' "${INDEX_DIRS[@]}")
@@ -119,56 +117,68 @@ prep_lattice_tree() {
 
   cd "$LATTICE_ROOT"
   log "Indexing tree under ${INDEX_DIRS[*]}..."
-  node --input-type=module -e "
-import { openVault } from './dist/storage/vault.js';
-import { indexFile } from './dist/indexer/indexer.js';
-import { initTreeSitter, resolveAndWriteEdges } from './dist/indexer/graph.js';
-import { readdir } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+  PYTHONPATH=. python3 -c "
+import os
+import json
+from lattice.storage.vault import open_vault
+from lattice.indexer.indexer import index_file, should_ignore
+from lattice.indexer.graph import init_tree_sitter, resolve_and_write_edges
 
-const EXTS = new Set(['.ts','.tsx','.js','.jsx','.py','.go','.rs']);
-const SKIP = new Set(['node_modules','dist','build','.next','__pycache__','.git','.lattice']);
+vault = open_vault('$WORK_REPO/.lattice')
+init_tree_sitter()
 
-async function walk(dir, out=[]) {
-  let entries;
-  try { entries = await readdir(dir, {withFileTypes:true}); } catch { return out; }
-  for (const e of entries) {
-    if (e.name.startsWith('.') || SKIP.has(e.name)) continue;
-    const p = join(dir, e.name);
-    if (e.isDirectory()) await walk(p, out);
-    else if (EXTS.has(extname(e.name))) out.push(p);
-  }
-  return out;
-}
+index_dirs = $dirs_json
+parseable_exts = {'.ts', '.tsx', '.js', '.jsx', '.py', '.rs', '.go'}
 
-const vault = await openVault('$WORK_REPO/.lattice');
-await initTreeSitter();
-const all = [];
-for (const d of $dirs_json) {
-  const files = await walk('$WORK_REPO/' + d);
-  all.push(...files);
-}
-console.log('Indexing ' + all.length + ' files...');
-const edges = [];
-let n = 0;
-for (const f of all) {
-  try { await indexFile(vault, f, edges, '$WORK_REPO'); } catch {}
-  if (++n % 100 === 0) console.log('  ' + n + '/' + all.length);
-}
-for (const p of edges) {
-  try { resolveAndWriteEdges(vault, p.chunkId, p.filePath, p.rawEdges, '$WORK_REPO'); } catch {}
-}
-vault.close();
-console.log('Indexed ' + all.length + ' files');
+all_files = []
+for d in index_dirs:
+    dir_path = os.path.join('$WORK_REPO', d)
+    if not os.path.exists(dir_path):
+        continue
+    for root, dirs, files in os.walk(dir_path):
+        dirs[:] = [sub for sub in dirs if sub not in {
+            'node_modules', '.git', '.terraform', '.next', '.nuxt',
+            'dist', 'build', '.lattice', '.venv', '.pytest_cache', '__pycache__'
+        }]
+        for file in files:
+            full_path = os.path.join(root, file)
+            if should_ignore(full_path, '$WORK_REPO'):
+                continue
+            ext = os.path.splitext(file)[1]
+            if ext in parseable_exts:
+                all_files.append(full_path)
+
+print(f'Indexing {len(all_files)} files...')
+pending_edges = []
+n = 0
+for f in all_files:
+    try:
+        index_file(vault, f, '$WORK_REPO', pending_edges)
+    except Exception:
+        pass
+    n += 1
+    if n % 100 == 0:
+        print(f'  {n}/{len(all_files)}')
+
+for p in pending_edges:
+    try:
+        resolve_and_write_edges(vault, p['chunk_id'], p['file_path'], p['raw_edges'], '$WORK_REPO')
+    except Exception:
+        pass
+
+vault.close()
+print(f'Indexed {len(all_files)} files')
 " 2>&1 | tee -a "$LOG_FILE"
 
   cd "$WORK_REPO"
-  node -e "
-const Database = require('$LATTICE_ROOT/node_modules/better-sqlite3');
-const db = new Database('.lattice/index.db');
-const yesterday = new Date(Date.now() - 24*3600*1000).toISOString();
-db.prepare('UPDATE chunks SET last_seen_at = ?').run(yesterday);
-db.close();
+  python3 -c "
+import sqlite3
+from datetime import datetime, timedelta, timezone
+yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat().replace('+00:00', 'Z')
+db = sqlite3.connect('.lattice/index.db')
+db.execute('UPDATE chunks SET last_seen_at = ?', (yesterday,))
+db.commit()
+db.close()
 " 2>&1 | tee -a "$LOG_FILE"
 }
 

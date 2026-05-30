@@ -14,6 +14,15 @@ class Vault:
     def close(self):
         self.db.close()
 
+    def write_edge(self, source: str, target: str, kind: str, confidence: float = 1.0):
+        self.db.execute('''
+            INSERT INTO edges (source_chunk_id, target_chunk_id, kind, confidence, call_count)
+            VALUES (?, ?, ?, ?, 1)
+            ON CONFLICT(source_chunk_id, target_chunk_id, kind) DO UPDATE SET
+                call_count = call_count + 1,
+                confidence = MAX(confidence, excluded.confidence)
+        ''', (source, target, kind, confidence))
+
     def get_chunk(self, chunk_id: str) -> Optional[Chunk]:
         row = self.db.execute("SELECT * FROM chunks WHERE id = ? AND superseded_by IS NULL", (chunk_id,)).fetchone()
         return Chunk.from_dict(dict(row)) if row else None

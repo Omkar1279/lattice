@@ -2,7 +2,7 @@
 
 import os
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass(frozen=True)
@@ -295,3 +295,207 @@ def extract_edges(file_path: str, source: str) -> list[dict[str, Any]]:
                 })
 
     return edges
+
+def resolve_and_write_edges(
+    vault: Any,
+    source_chunk_id: str,
+    source_file_path: str,
+    raw_edges: list[dict[str, Any]],
+    repo_root: str
+) -> None:
+    db = vault.db
+    
+    def find_chunks_by_symbol(symbol: str) -> list[str]:
+        cursor = db.execute("SELECT chunk_id FROM symbols WHERE symbol = ? AND chunk_id IS NOT NULL", (symbol,))
+        return [row[0] for row in cursor.fetchall()]
+        
+    _reachable = None
+    def get_reachable_imports() -> set[str]:
+        nonlocal _reachable
+        if _reachable is not None:
+            return _reachable
+        cursor = db.execute("SELECT target_chunk_id FROM edges WHERE source_chunk_id = ? AND kind = 'imports'", (source_chunk_id,))
+        _reachable = {row[0] for row in cursor.fetchall()}
+        return _reachable
+
+    for edge in raw_edges:
+        kind = edge["kind"]
+        target_symbol = edge["target_symbol"]
+        confidence = edge["confidence"]
+        
+        if kind == "imports":
+            resolved = resolve_import_path(source_file_path, target_symbol, repo_root)
+            if not resolved:
+                continue
+                
+            sql = """
+                SELECT id FROM chunks
+                WHERE source = 'code_index'
+                  AND (path LIKE ? OR path LIKE ? OR path LIKE ? OR path LIKE ? OR path LIKE ? OR path LIKE ? OR path LIKE ?)
+            """
+            params = (
+                f"%/{resolved}.ts",
+                f"%/{resolved}.tsx",
+                f"%/{resolved}.js",
+                f"%/{resolved}.jsx",
+                f"%/{resolved}.py",
+                f"%/{resolved}.go",
+                f"%/{resolved}/index.ts"
+            )
+            rows = db.execute(sql, params).fetchall()
+            for row in rows:
+                target_id = row[0]
+                if target_id != source_chunk_id:
+                    vault.write_edge(source_chunk_id, target_id, "imports", confidence)
+                    
+        elif kind == "calls":
+            reachable = get_reachable_imports()
+            targets = [tid for tid in find_chunks_by_symbol(target_symbol) if tid != source_chunk_id and tid in reachable]
+            if not targets:
+                continue
+                
+            adjusted = confidence * min(1.0, 1.0 / len(targets))
+            for target_id in targets:
+                vault.write_edge(source_chunk_id, target_id, "calls", adjusted)
+                
+        elif kind in ("implements", "extends"):
+            for target_id in find_chunks_by_symbol(target_symbol):
+                if target_id != source_chunk_id:
+                    vault.write_edge(source_chunk_id, target_id, kind, confidence)
+
+def resolve_import_path(from_file: str, import_spec: str, repo_root: str) -> Optional[str]:
+    import os
+    if import_spec.startswith(".") or import_spec.startswith("/"):
+        resolved = os.path.abspath(os.path.join(os.path.dirname(from_file), import_spec))
+        rel = os.path.relpath(resolved, repo_root)
+        for ext in ['.ts', '.tsx', '.js', '.jsx', '.py', '.rs', '.go']:
+            if rel.endswith(ext):
+                rel = rel[:-len(ext)]
+                break
+        return rel
+    return resolve_alias(import_spec, repo_root)
+
+def parse_jsonc(text: str) -> Any:
+    import json
+    import re
+    out = ""
+    in_str = False
+    in_line = False
+    in_block = False
+    esc = False
+    i = 0
+    while i < len(text):
+        c = text[i]
+        n = text[i+1] if i+1 < len(text) else ""
+        if in_line:
+            if c == "\n":
+                in_line = False
+                out += c
+            i += 1
+            continue
+        if in_block:
+            if c == "*" and n == "/":
+                in_block = False
+                i += 2
+            else:
+                i += 1
+            continue
+        if in_str:
+            out += c
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+            i += 1
+            continue
+        if c == '"':
+            in_str = True
+            out += c
+            i += 1
+            continue
+        if c == "/" and n == "/":
+            in_line = True
+            i += 2
+            continue
+        if c == "/" and n == "*":
+            in_block = True
+            i += 2
+            continue
+        out += c
+        i += 1
+    cleaned = re.sub(r',(\s*[}\]])', r'\1', out)
+    return json.loads(cleaned)
+
+_alias_cache: dict[str, list[dict[str, Any]]] = {}
+
+def load_alias_table(repo_root: str) -> list[dict[str, Any]]:
+    import json
+    global _alias_cache
+    if repo_root in _alias_cache:
+        return _alias_cache[repo_root]
+        
+    entries = []
+    try:
+        files = [f for f in os.listdir(repo_root) if f == "tsconfig.json" or (f.startswith("tsconfig.") and f.endswith(".json"))]
+    except Exception:
+        _alias_cache[repo_root] = entries
+        return entries
+        
+    for file in files:
+        try:
+            with open(os.path.join(repo_root, file), 'r', encoding='utf-8') as f:
+                content = f.read()
+            cfg = parse_jsonc(content)
+        except Exception:
+            continue
+            
+        opts = cfg.get("compilerOptions", {})
+        paths = opts.get("paths")
+        if not paths:
+            continue
+            
+        base_url = opts.get("baseUrl", ".")
+        for pattern, targets in paths.items():
+            star = pattern.find("*")
+            prefix = pattern if star == -1 else pattern[:star]
+            suffix = "" if star == -1 else pattern[star+1:]
+            resolved_targets = [os.path.normpath(os.path.join(base_url, t)) for t in targets]
+            entries.append({
+                "prefix": prefix,
+                "suffix": suffix,
+                "targets": resolved_targets
+            })
+            
+    entries.sort(key=lambda x: len(x["prefix"]), reverse=True)
+    _alias_cache[repo_root] = entries
+    return entries
+
+def resolve_alias(import_spec: str, repo_root: str) -> Optional[str]:
+    table = load_alias_table(repo_root)
+    for entry in table:
+        if len(import_spec) < len(entry["prefix"]) + len(entry["suffix"]):
+            continue
+        if not import_spec.startswith(entry["prefix"]):
+            continue
+        if entry["suffix"] and not import_spec.endswith(entry["suffix"]):
+            continue
+            
+        if entry["suffix"]:
+            captured = import_spec[len(entry["prefix"]): -len(entry["suffix"])]
+        else:
+            captured = import_spec[len(entry["prefix"]):]
+            
+        target = entry["targets"][0] if entry["targets"] else None
+        if not target:
+            continue
+            
+        expanded = target.replace("*", captured) if "*" in target else target
+        rel = os.path.normpath(expanded)
+        for ext in ['.ts', '.tsx', '.js', '.jsx', '.py', '.rs', '.go']:
+            if rel.endswith(ext):
+                rel = rel[:-len(ext)]
+                break
+        return rel
+    return None

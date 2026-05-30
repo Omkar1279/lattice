@@ -140,3 +140,23 @@ def test_classify_fact_logic(vault):
     # Low overlap should trigger ADD
     res = classify_fact(db, "The project is using Vitest for TypeScript testing.")
     assert res["action"] == "ADD"
+
+def test_resolve_and_write_edges_integration(vault):
+    db = vault.vault.db
+    # Seed source and target chunks
+    db.execute("INSERT INTO chunks (id, heading, body, source, path, created_at, last_seen_at, last_validated_at) VALUES ('src_chunk', 'a.py', 'import b', 'code_index', '/project/a.py', 'now', 'now', 'now')")
+    db.execute("INSERT INTO chunks (id, heading, body, source, path, created_at, last_seen_at, last_validated_at) VALUES ('tgt_chunk', 'b.py', 'def helper(): pass', 'code_index', '/project/b.py', 'now', 'now', 'now')")
+    
+    # Resolve the import edge
+    from lattice.indexer.graph import resolve_and_write_edges
+    raw_edges = [
+        {"kind": "imports", "target_symbol": "./b", "line": 0, "confidence": 1.0}
+    ]
+    resolve_and_write_edges(vault.vault, "src_chunk", "/project/a.py", raw_edges, "/project")
+    
+    # Query edges table
+    row = db.execute("SELECT * FROM edges WHERE source_chunk_id = ?", ("src_chunk",)).fetchone()
+    assert row is not None
+    assert row["target_chunk_id"] == "tgt_chunk"
+    assert row["kind"] == "imports"
+    assert row["confidence"] == 1.0

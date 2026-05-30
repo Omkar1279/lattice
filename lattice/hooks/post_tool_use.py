@@ -44,8 +44,11 @@ def handle_edit_tool(vault_dir: str, event: Dict[str, Any]):
         index_file(vault, file_path, repo_root, pending_edges)
         
         for pending in pending_edges:
-            # Full graph resolution implementation goes here if implemented
-            pass
+            from lattice.indexer.graph import resolve_and_write_edges
+            try:
+                resolve_and_write_edges(vault, pending['chunk_id'], pending['file_path'], pending['raw_edges'], repo_root)
+            except Exception:
+                pass
         vault.db.commit()
     except Exception:
         pass
