@@ -152,4 +152,4 @@ uv run pytest
 
 ## 🏛️ Architecture & Deep-Dive
 
-For a complete breakdown of the system components, database schemas, AST parsers, RRF fusion formulas, and lazy loading strategies, see [architecture.md](file:///Users/asl-user/Documents/personal/claude-plugin-idea/lattice-python/architecture.md).
+For a complete breakdown of the system components, database schemas, AST parsers, RRF fusion formulas, and lazy loading strategies, see [architecture.md](docs/architecture.md).
