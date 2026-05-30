@@ -40,5 +40,19 @@ def handle_session_start(payload: str) -> str:
         except Exception:
             pass
             
-    out = truncate_to_budget('\n'.join(parts), 400)
+    # Load and advertise SKILL.md
+    try:
+        # Check current working directory first, fallback to vault parent
+        skill_path = Path(os.getcwd()) / 'SKILL.md'
+        if not skill_path.exists():
+            skill_path = Path(vault_dir).resolve().parent / 'SKILL.md'
+            
+        if skill_path.exists():
+            skill = skill_path.read_text(encoding='utf-8').strip()
+            if skill:
+                parts.append(skill)
+    except Exception:
+        pass
+            
+    out = truncate_to_budget('\n'.join(parts), 2000)
     return out

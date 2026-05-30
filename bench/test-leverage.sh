@@ -53,6 +53,7 @@ MODEL="${BENCH_MODEL:-sonnet}"
 EFFORT="${BENCH_EFFORT:-medium}"
 MAX_BUDGET="${BENCH_MAX_BUDGET:-1.50}"
 PAIRS="${BENCH_PAIRS:-1 2 3 4}"
+BENCH_RUNS="${BENCH_RUNS:-5}"
 
 mkdir -p "$RESULTS_DIR"
 
@@ -186,10 +187,10 @@ clear_lattice() { rm -rf "$WORK_REPO/.lattice"; }
 
 # Run a single prompt with or without the plugin and record metrics
 run_variant() {
-  local variant="$1" pair="$2" prompt="$3"
-  local outfile="$RESULTS_DIR/${pair}__${variant}.json"
+  local variant="$1" pair="$2" prompt="$3" run_num="$4"
+  local outfile="$RESULTS_DIR/${pair}__${variant}__run${run_num}.json"
 
-  log "  ▶ $pair / $variant"
+  log "  ▶ $pair / $variant (run $run_num)"
   cd "$WORK_REPO"
 
   local plugin_args=()
@@ -208,14 +209,35 @@ run_variant() {
     return 1
   fi
 
-  local cost turns in_tok cache_create out_tok
+  # Extract telemetry from $WORK_REPO/.lattice/log/telemetry.log and add to $outfile
+  if [ "$variant" = "with" ] && [ -f "$WORK_REPO/.lattice/log/telemetry.log" ]; then
+    python3 - "$outfile" "$WORK_REPO/.lattice/log/telemetry.log" <<'PYEOF'
+import json, sys
+outfile, logfile = sys.argv[1], sys.argv[2]
+try:
+    data = json.load(open(outfile))
+    telemetry = {}
+    with open(logfile, 'r', encoding='utf-8') as f:
+        for line in f:
+            if line.startswith("recall_expand:"):
+                mode = line.strip().split(":", 1)[1]
+                telemetry[mode] = telemetry.get(mode, 0) + 1
+    data["telemetry"] = telemetry
+    json.dump(data, open(outfile, "w"), indent=2)
+except Exception as e:
+    sys.stderr.write(f"Error adding telemetry: {e}\n")
+PYEOF
+  fi
+
+  local cost turns in_tok cache_create out_tok cache_read
   cost=$(jq -r '.total_cost_usd // 0' "$outfile")
   turns=$(jq -r '.num_turns // 0' "$outfile")
   in_tok=$(jq -r '.usage.input_tokens // 0' "$outfile")
   cache_create=$(jq -r '.usage.cache_creation_input_tokens // 0' "$outfile")
+  cache_read=$(jq -r '.usage.cache_read_input_tokens // 0' "$outfile")
   out_tok=$(jq -r '.usage.output_tokens // 0' "$outfile")
 
-  log "    cost=\$$cost turns=$turns input=$in_tok cache_create=$cache_create output=$out_tok dur=${dur}s"
+  log "    cost=\$$cost turns=$turns input=$in_tok cache_create=$cache_create cache_read=$cache_read output=$out_tok dur=${dur}s"
 }
 
 # Sum two single-session JSONs into a synthetic combined record so the
@@ -229,10 +251,16 @@ f1, f2, out, note = sys.argv[1:5]
 a = json.load(open(f1)); b = json.load(open(f2))
 ua = a.get("usage", {}); ub = b.get("usage", {})
 keys = ["input_tokens","cache_creation_input_tokens","cache_read_input_tokens","output_tokens"]
+telemetry = {}
+ta = a.get("telemetry", {})
+tb = b.get("telemetry", {})
+for k in set(list(ta.keys()) + list(tb.keys())):
+    telemetry[k] = ta.get(k, 0) + tb.get(k, 0)
 combined = {
     "total_cost_usd": a.get("total_cost_usd", 0) + b.get("total_cost_usd", 0),
     "num_turns": a.get("num_turns", 0) + b.get("num_turns", 0),
     "usage": {k: ua.get(k, 0) + ub.get(k, 0) for k in keys},
+    "telemetry": telemetry,
     "_synthetic": note,
 }
 json.dump(combined, open(out, "w"), indent=2)
@@ -252,18 +280,29 @@ P1_S2='What was the file path of the application entry / root file in this codeb
 run_pair1_crosssession() {
   log ""
   log "═══ PAIR 1 — cross-session continuity ═══"
-  prep_lattice_tree
-  run_variant "with" "p1_s1" "$P1_S1" || true
-  run_variant "with" "p1_s2" "$P1_S2" || true
-  [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
-    cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/p1__hook.log"
-  clear_lattice
-  run_variant "without" "p1_s1" "$P1_S1" || true
-  run_variant "without" "p1_s2" "$P1_S2" || true
-  for v in with without; do
-    sum_sessions "$RESULTS_DIR/p1_s1__${v}.json" \
-                 "$RESULTS_DIR/p1_s2__${v}.json" \
-                 "$RESULTS_DIR/p1_crosssession__${v}.json"
+  for r in $(seq 1 "$BENCH_RUNS"); do
+    log "--- Run $r/$BENCH_RUNS ---"
+    prep_lattice_tree
+    # Reset telemetry log before first session
+    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
+    run_variant "with" "p1_s1" "$P1_S1" "$r" || true
+    
+    # We do not reset the lattice tree or telemetry log between S1 and S2
+    # but we can optionally reset telemetry.log to isolate S2 telemetry,
+    # or keep it. Let's reset it so S2 has its own telemetry, merged by sum_sessions.
+    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
+    run_variant "with" "p1_s2" "$P1_S2" "$r" || true
+    
+    [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
+      cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/p1__hook__run${r}.log"
+    clear_lattice
+    run_variant "without" "p1_s1" "$P1_S1" "$r" || true
+    run_variant "without" "p1_s2" "$P1_S2" "$r" || true
+    for v in with without; do
+      sum_sessions "$RESULTS_DIR/p1_s1__${v}__run${r}.json" \
+                   "$RESULTS_DIR/p1_s2__${v}__run${r}.json" \
+                   "$RESULTS_DIR/p1_crosssession__${v}__run${r}.json"
+    done
   done
 }
 
@@ -286,30 +325,41 @@ run_pair_simple() {
   local pair="$1" prompt="$2"
   log ""
   log "═══ ${pair} ═══"
-  prep_lattice_tree
-  run_variant "with" "$pair" "$prompt" || true
-  [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
-    cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/${pair}__hook.log"
-  clear_lattice
-  run_variant "without" "$pair" "$prompt" || true
+  for r in $(seq 1 "$BENCH_RUNS"); do
+    log "--- Run $r/$BENCH_RUNS ---"
+    prep_lattice_tree
+    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
+    run_variant "with" "$pair" "$prompt" "$r" || true
+    [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
+      cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/${pair}__hook__run${r}.log"
+    clear_lattice
+    run_variant "without" "$pair" "$prompt" "$r" || true
+  done
 }
 
 run_pair4_decisionpersist() {
   log ""
   log "═══ PAIR 4 — decision persistence ═══"
-  prep_lattice_tree
-  run_variant "with" "p4_s1" "$P4_S1" || true
-  run_variant "with" "p4_s2" "$P4_S2" || true
-  [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
-    cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/p4__hook.log"
-  clear_lattice
-  run_variant "without" "p4_s1" "$P4_S1" || true
-  run_variant "without" "p4_s2" "$P4_S2" || true
-  for v in with without; do
-    sum_sessions "$RESULTS_DIR/p4_s1__${v}.json" \
-                 "$RESULTS_DIR/p4_s2__${v}.json" \
-                 "$RESULTS_DIR/p4_decisionpersist__${v}.json" \
-                 "S1+S2 — inspect S2 output to judge correctness, not just cost"
+  for r in $(seq 1 "$BENCH_RUNS"); do
+    log "--- Run $r/$BENCH_RUNS ---"
+    prep_lattice_tree
+    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
+    run_variant "with" "p4_s1" "$P4_S1" "$r" || true
+    
+    rm -f "$WORK_REPO/.lattice/log/telemetry.log"
+    run_variant "with" "p4_s2" "$P4_S2" "$r" || true
+    
+    [ -f "$WORK_REPO/.lattice/log/hook.log" ] && \
+      cp "$WORK_REPO/.lattice/log/hook.log" "$RESULTS_DIR/p4__hook__run${r}.log"
+    clear_lattice
+    run_variant "without" "p4_s1" "$P4_S1" "$r" || true
+    run_variant "without" "p4_s2" "$P4_S2" "$r" || true
+    for v in with without; do
+      sum_sessions "$RESULTS_DIR/p4_s1__${v}__run${r}.json" \
+                   "$RESULTS_DIR/p4_s2__${v}__run${r}.json" \
+                   "$RESULTS_DIR/p4_decisionpersist__${v}__run${r}.json" \
+                   "S1+S2 — inspect S2 output to judge correctness, not just cost"
+    done
   done
 }
 
@@ -340,66 +390,189 @@ done
 # ─────────────────────────────────────────────────────────────────────────────
 
 log ""
-log "═══ LEVERAGE TABLE ═══"
-printf "%-26s | %-7s | %8s | %5s | %9s | %12s | %8s\n" \
-  "pair" "variant" "cost(\$)" "turns" "input_tok" "cache_create" "output" | tee -a "$LOG_FILE"
-printf -- "---------------------------+---------+----------+-------+-----------+--------------+----------\n" \
-  | tee -a "$LOG_FILE"
+python3 - "$RESULTS_DIR" <<'PYEOF' | tee -a "$LOG_FILE"
+import os
+import sys
+import glob
+import json
+import math
 
-for f in "$RESULTS_DIR"/*__with.json "$RESULTS_DIR"/*__without.json; do
-  [ -f "$f" ] || continue
-  base=$(basename "$f" .json)
-  pair="${base%__*}"; variant="${base##*__}"
-  cost=$(jq -r '.total_cost_usd // 0' "$f")
-  turns=$(jq -r '.num_turns // 0' "$f")
-  in_tok=$(jq -r '.usage.input_tokens // 0' "$f")
-  cc=$(jq -r '.usage.cache_creation_input_tokens // 0' "$f")
-  out_tok=$(jq -r '.usage.output_tokens // 0' "$f")
-  printf "%-26s | %-7s | %8.4f | %5d | %9d | %12d | %8d\n" \
-    "$pair" "$variant" "$cost" "$turns" "$in_tok" "$cc" "$out_tok" | tee -a "$LOG_FILE"
-done
+results_dir = sys.argv[1]
 
-log ""
-log "═══ PER-PAIR DELTAS (with vs without) ═══"
-for fw in "$RESULTS_DIR"/*__with.json; do
-  [ -f "$fw" ] || continue
-  base=$(basename "$fw" __with.json)
-  fwo="$RESULTS_DIR/${base}__without.json"
-  [ -f "$fwo" ] || continue
-  python3 - "$fw" "$fwo" "$base" <<'PYEOF' | tee -a "$LOG_FILE"
-import json, sys
-fw, fwo, name = sys.argv[1], sys.argv[2], sys.argv[3]
-a = json.load(open(fw)); b = json.load(open(fwo))
-ua = a.get("usage", {}); ub = b.get("usage", {})
+# Find all run files
+files = glob.glob(os.path.join(results_dir, "*__*__run*.json"))
 
-def pct(w, wo): return 0.0 if wo == 0 else 100.0 * (wo - w) / wo
+# Group files by (pair, variant)
+groups = {}
+for f in files:
+    base = os.path.basename(f)
+    parts = base.rsplit(".", 1)[0].split("__")
+    if len(parts) != 3:
+        continue
+    pair, variant, run_str = parts
+    groups.setdefault((pair, variant), []).append(f)
 
-ca, cb = a.get("total_cost_usd",0), b.get("total_cost_usd",0)
-ia, ib = ua.get("input_tokens",0), ub.get("input_tokens",0)
-cca, ccb = ua.get("cache_creation_input_tokens",0), ub.get("cache_creation_input_tokens",0)
-oa, ob = ua.get("output_tokens",0), ub.get("output_tokens",0)
-ta, tb = a.get("num_turns",0), b.get("num_turns",0)
-ea, eb = ia+cca, ib+ccb
+# Student's t-value for df = n - 1 = 4 at 95% confidence level
+T_VALUE = 2.776
 
-print(f"{name}:")
-print(f"  cost           : with=${ca:.4f}  without=${cb:.4f}  saved={pct(ca,cb):+6.1f}%")
-print(f"  input_tokens   : with={ia:7d}    without={ib:7d}    saved={pct(ia,ib):+6.1f}%")
-print(f"  cache_creation : with={cca:7d}    without={ccb:7d}    saved={pct(cca,ccb):+6.1f}%")
-print(f"  effective_in   : with={ea:7d}    without={eb:7d}    saved={pct(ea,eb):+6.1f}%")
-print(f"  output_tokens  : with={oa:7d}    without={ob:7d}    saved={pct(oa,ob):+6.1f}%")
-print(f"  turns          : with={ta:7d}    without={tb:7d}")
-print()
+def compute_stats(values):
+    n = len(values)
+    if n == 0:
+        return 0.0, 0.0
+    mean = sum(values) / n
+    if n < 2:
+        return mean, 0.0
+    variance = sum((x - mean) ** 2 for x in values) / (n - 1)
+    std_err = math.sqrt(variance) / math.sqrt(n)
+    ci = T_VALUE * std_err
+    return mean, ci
+
+print("═══ LEVERAGE TABLE (n=5, mean ± 95% CI) ═══")
+print(f"{'pair':<20} | {'variant':<7} | {'cost ($)':<18} | {'turns':<12} | {'input_tok':<18} | {'cache_create':<18} | {'cache_read':<18} | {'cache_hit %':<16} | {'output':<15} | {'recall_expand modes'}")
+print("-" * 175)
+
+# Sort keys for consistent display
+sorted_keys = sorted(groups.keys(), key=lambda x: (x[0], x[1] == 'without'))
+
+for pair, variant in sorted_keys:
+    group_files = groups[(pair, variant)]
+    costs, turns, inputs, creations, reads, hits, outputs = [], [], [], [], [], [], []
+    telemetry_totals = {}
+    
+    n_runs = len(group_files)
+    
+    for gf in group_files:
+        try:
+            data = json.load(open(gf))
+            costs.append(data.get("total_cost_usd", 0.0))
+            turns.append(data.get("num_turns", 0))
+            
+            usage = data.get("usage", {})
+            in_tok = usage.get("input_tokens", 0)
+            cc = usage.get("cache_creation_input_tokens", 0)
+            cr = usage.get("cache_read_input_tokens", 0)
+            out_tok = usage.get("output_tokens", 0)
+            
+            inputs.append(in_tok)
+            creations.append(cc)
+            reads.append(cr)
+            outputs.append(out_tok)
+            
+            denom = cr + cc
+            hit_ratio = (cr / denom * 100.0) if denom > 0 else 0.0
+            hits.append(hit_ratio)
+            
+            telemetry = data.get("telemetry", {})
+            for mode, count in telemetry.items():
+                telemetry_totals[mode] = telemetry_totals.get(mode, 0) + count
+        except Exception as e:
+            pass
+            
+    mean_cost, ci_cost = compute_stats(costs)
+    mean_turns, ci_turns = compute_stats(turns)
+    mean_in, ci_in = compute_stats(inputs)
+    mean_cc, ci_cc = compute_stats(creations)
+    mean_cr, ci_cr = compute_stats(reads)
+    mean_hit, ci_hit = compute_stats(hits)
+    mean_out, ci_out = compute_stats(outputs)
+    
+    # Format recall_expand modes representation
+    mode_parts = []
+    if variant == "with" and telemetry_totals:
+        for mode in sorted(telemetry_totals.keys()):
+            avg_count = telemetry_totals[mode] / n_runs
+            mode_parts.append(f"{mode}:{avg_count:.1f}")
+        modes_str = ", ".join(mode_parts)
+    elif variant == "with":
+        modes_str = "none"
+    else:
+        modes_str = "-"
+        
+    cost_str = f"{mean_cost:.4f} ± {ci_cost:.4f}"
+    turns_str = f"{mean_turns:.1f} ± {ci_turns:.1f}"
+    in_str = f"{mean_in:.1f} ± {ci_in:.1f}"
+    cc_str = f"{mean_cc:.1f} ± {ci_cc:.1f}"
+    cr_str = f"{mean_cr:.1f} ± {ci_cr:.1f}"
+    hit_str = f"{mean_hit:.1f}% ± {ci_hit:.1f}%"
+    out_str = f"{mean_out:.1f} ± {ci_out:.1f}"
+    
+    print(f"{pair:<20} | {variant:<7} | {cost_str:<18} | {turns_str:<12} | {in_str:<18} | {cc_str:<18} | {cr_str:<18} | {hit_str:<16} | {out_str:<15} | {modes_str}")
+
+# Compute deltas comparing the mean of with vs without
+pairs = set(k[0] for k in groups.keys())
+print("\n═══ PER-PAIR DELTAS (with vs without mean comparisons) ═══")
+for p in sorted(pairs):
+    if (p, "with") not in groups or (p, "without") not in groups:
+        continue
+    
+    with_files = groups[(p, "with")]
+    without_files = groups[(p, "without")]
+    
+    w_costs = [json.load(open(f)).get("total_cost_usd", 0.0) for f in with_files]
+    wo_costs = [json.load(open(f)).get("total_cost_usd", 0.0) for f in without_files]
+    
+    w_turns = [json.load(open(f)).get("num_turns", 0) for f in with_files]
+    wo_turns = [json.load(open(f)).get("num_turns", 0) for f in without_files]
+    
+    w_inputs = [json.load(open(f)).get("usage", {}).get("input_tokens", 0) for f in with_files]
+    wo_inputs = [json.load(open(f)).get("usage", {}).get("input_tokens", 0) for f in without_files]
+    
+    w_cc = [json.load(open(f)).get("usage", {}).get("cache_creation_input_tokens", 0) for f in with_files]
+    wo_cc = [json.load(open(f)).get("usage", {}).get("cache_creation_input_tokens", 0) for f in without_files]
+    
+    w_cr = [json.load(open(f)).get("usage", {}).get("cache_read_input_tokens", 0) for f in with_files]
+    wo_cr = [json.load(open(f)).get("usage", {}).get("cache_read_input_tokens", 0) for f in without_files]
+    
+    w_outputs = [json.load(open(f)).get("usage", {}).get("output_tokens", 0) for f in with_files]
+    wo_outputs = [json.load(open(f)).get("usage", {}).get("output_tokens", 0) for f in without_files]
+
+    w_eff = [i + c for i, c in zip(w_inputs, w_cc)]
+    wo_eff = [i + c for i, c in zip(wo_inputs, wo_cc)]
+
+    def pct(w, wo): return 0.0 if wo == 0 else 100.0 * (wo - w) / wo
+    
+    m_w_cost, ci_w_cost = compute_stats(w_costs)
+    m_wo_cost, ci_wo_cost = compute_stats(wo_costs)
+    
+    m_w_turns, ci_w_turns = compute_stats(w_turns)
+    m_wo_turns, ci_wo_turns = compute_stats(wo_turns)
+    
+    m_w_in, ci_w_in = compute_stats(w_inputs)
+    m_wo_in, ci_wo_in = compute_stats(wo_inputs)
+    
+    m_w_cc, ci_w_cc = compute_stats(w_cc)
+    m_wo_cc, ci_wo_cc = compute_stats(wo_cc)
+
+    m_w_cr, ci_w_cr = compute_stats(w_cr)
+    m_wo_cr, ci_wo_cr = compute_stats(wo_cr)
+
+    m_w_eff, ci_w_eff = compute_stats(w_eff)
+    m_wo_eff, ci_wo_eff = compute_stats(wo_eff)
+    
+    m_w_out, ci_w_out = compute_stats(w_outputs)
+    m_wo_out, ci_wo_out = compute_stats(wo_outputs)
+    
+    print(f"{p}:")
+    print(f"  cost           : with={m_w_cost:.4f} ± {ci_w_cost:.4f}  without={m_wo_cost:.4f} ± {ci_wo_cost:.4f}  saved={pct(m_w_cost, m_wo_cost):+6.1f}%")
+    print(f"  turns          : with={m_w_turns:.1f} ± {ci_w_turns:.1f}  without={m_wo_turns:.1f} ± {ci_wo_turns:.1f}  saved={pct(m_w_turns, m_wo_turns):+6.1f}%")
+    print(f"  input_tokens   : with={m_w_in:.1f} ± {ci_w_in:.1f}  without={m_wo_in:.1f} ± {ci_wo_in:.1f}  saved={pct(m_w_in, m_wo_in):+6.1f}%")
+    print(f"  cache_creation : with={m_w_cc:.1f} ± {ci_w_cc:.1f}  without={m_wo_cc:.1f} ± {ci_wo_cc:.1f}  saved={pct(m_w_cc, m_wo_cc):+6.1f}%")
+    print(f"  cache_read     : with={m_w_cr:.1f} ± {ci_w_cr:.1f}  without={m_wo_cr:.1f} ± {ci_wo_cr:.1f}  saved={pct(m_w_cr, m_wo_cr):+6.1f}%")
+    print(f"  effective_in   : with={m_w_eff:.1f} ± {ci_w_eff:.1f}  without={m_wo_eff:.1f} ± {ci_wo_eff:.1f}  saved={pct(m_w_eff, m_wo_eff):+6.1f}%")
+    print(f"  output_tokens  : with={m_w_out:.1f} ± {ci_w_out:.1f}  without={m_wo_out:.1f} ± {ci_wo_out:.1f}  saved={pct(m_w_out, m_wo_out):+6.1f}%")
+    print()
 PYEOF
-done
 
 log "═══ HOOK ACTIVITY (WITH variant) ═══"
-for h in "$RESULTS_DIR"/*__hook.log; do
-  [ -f "$h" ] || continue
-  pair=$(basename "$h" __hook.log)
-  blocked=$(grep -c 'BLOCKED' "$h" 2>/dev/null || true)
-  intercepted=$(grep -c 'intercepted:' "$h" 2>/dev/null || true)
-  errors=$(grep -c 'error:' "$h" 2>/dev/null || true)
-  log "  $pair: BLOCKED=$blocked  intercepted=$intercepted  errors=$errors"
+for r in $(seq 1 "$BENCH_RUNS"); do
+  for h in "$RESULTS_DIR"/*__hook__run${r}.log; do
+    [ -f "$h" ] || continue
+    pair_run=$(basename "$h" .log)
+    blocked=$(grep -c 'BLOCKED' "$h" 2>/dev/null || true)
+    intercepted=$(grep -c 'intercepted:' "$h" 2>/dev/null || true)
+    errors=$(grep -c 'error:' "$h" 2>/dev/null || true)
+    log "  $pair_run: BLOCKED=$blocked  intercepted=$intercepted  errors=$errors"
+  done
 done
 
 log ""

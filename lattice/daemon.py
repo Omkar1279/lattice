@@ -88,6 +88,15 @@ def recall_expand(chunk_id: str, mode: str = 'body', budget_tokens: int = 1500, 
     from lattice.storage import open_vault
     from lattice.tools import handle_recall_expand
     
+    # Telemetry logging
+    try:
+        telemetry_dir = Path(os.environ.get('LATTICE_VAULT_DIR', '.lattice')) / 'log'
+        telemetry_dir.mkdir(parents=True, exist_ok=True)
+        with open(telemetry_dir / 'telemetry.log', 'a', encoding='utf-8') as f:
+            f.write(f"recall_expand:{mode}\n")
+    except Exception:
+        pass
+        
     vault = open_vault(os.environ.get('LATTICE_VAULT_DIR', '.lattice'))
     try:
         return handle_recall_expand(vault, locals())
