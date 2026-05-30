@@ -6,7 +6,6 @@ from lattice.storage import open_vault
 from lattice.util import truncate_to_budget
 
 RETENTION_DAYS = int(os.environ.get('LATTICE_RETENTION_DAYS', 365))
-MEM0_ENABLED = os.environ.get('LATTICE_MEM0', 'off').lower() == 'on'
 
 def handle_stop(payload: str) -> str:
     '''Final session hook: prunes old auto-captures, merges facts, and writes a session summary.'''
@@ -25,10 +24,7 @@ def handle_stop(payload: str) -> str:
     
     try:
         if os.environ.get('LATTICE_AUTOSUMMARY') != 'off':
-            if MEM0_ENABLED:
-                extract_and_consolidate(vault, db, log_path)
-            else:
-                write_summary(vault, vault_dir)
+            write_summary(vault, vault_dir)
             
         cutoff = (datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)).isoformat().replace('+00:00', 'Z')
         
@@ -49,98 +45,6 @@ def handle_stop(payload: str) -> str:
         vault.close()
         
     return ''
-
-def classify_fact(db: Any, fact: str) -> dict:
-    import re
-    words = [t for t in re.split(r'[^\w]+', fact) if t]
-    keywords = [t for t in words if len(t) > 2][:5]
-    if not keywords:
-        return {"action": "NO_CHANGE"}
-        
-    fts_query = " OR ".join(f'"{k.replace(chr(34), chr(34)+chr(34))}"' for k in keywords)
-    
-    try:
-        sql = '''
-            SELECT c.id, c.body FROM chunks_fts fts
-            JOIN chunks c ON c.rowid = fts.rowid
-            WHERE chunks_fts MATCH ? AND c.superseded_by IS NULL
-            ORDER BY rank LIMIT 5
-        '''
-        matches = db.execute(sql, (fts_query,)).fetchall()
-    except Exception:
-        return {"action": "ADD"}
-        
-    if not matches:
-        return {"action": "ADD"}
-        
-    fact_words = set(w.lower() for w in re.split(r'[^\w]+', fact) if w)
-    overlap_threshold = 0.6
-    
-    for match in matches:
-        match_words = set(w.lower() for w in re.split(r'[^\w]+', match['body']) if w)
-        intersection = len(fact_words.intersection(match_words))
-        ratio = intersection / max(len(fact_words), 1)
-        
-        if ratio > overlap_threshold:
-            return {"action": "UPDATE", "supersedes": match['id']}
-            
-    return {"action": "ADD"}
-
-def extract_and_consolidate(vault: Any, db: Any, log_path: Path):
-    snapshot = db.execute('''
-        SELECT id, body FROM chunks
-        WHERE source = 'auto_capture' AND tags LIKE '%session_snapshot%'
-        ORDER BY last_seen_at DESC LIMIT 1
-    ''').fetchone()
-    
-    if not snapshot:
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(f"[{datetime.now(timezone.utc).isoformat()}] stop/mem0: no session snapshot found, skipping\n")
-        except Exception:
-            pass
-        return
-        
-    from lattice.util.mem0 import extract_atomic_facts
-    facts = extract_atomic_facts(snapshot['body'])
-    if not facts:
-        return
-        
-    added = 0
-    updated = 0
-    skipped = 0
-    
-    for fact in facts:
-        decision = classify_fact(db, fact)
-        action = decision.get("action")
-        
-        if action == "NO_CHANGE":
-            skipped += 1
-            continue
-            
-        if action == "ADD":
-            vault.write_note(
-                heading=fact[:80],
-                body=fact,
-                tags=["mem0_extracted", "auto"],
-                source="auto_capture"
-            )
-            added += 1
-        elif action == "UPDATE":
-            vault.write_note(
-                heading=fact[:80],
-                body=fact,
-                tags=["mem0_extracted", "auto"],
-                source="auto_capture",
-                supersedes=decision.get("supersedes")
-            )
-            updated += 1
-            
-    try:
-        with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(f"[{datetime.now(timezone.utc).isoformat()}] stop/mem0: {len(facts)} facts → {added} added, {updated} updated, {skipped} unchanged\n")
-    except Exception:
-        pass
 
 def write_summary(vault, vault_dir):
     '''Writes a markdown summary of the most recent notes and snapshots.'''

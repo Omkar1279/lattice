@@ -68,11 +68,6 @@ class Vault:
         semantic = SemanticSearchStrategy(self.db)
         semantic.embed_and_store(chunk_id, f'{heading}\n{body[:512]}')
         
-        # Also ColBERT embed if enabled
-        if os.environ.get("LATTICE_COLBERT") == "on":
-            from lattice.retrieval.colbert import embed_and_store_colbert
-            embed_and_store_colbert(self.db, chunk_id, f'{heading}\n{body[:512]}')
-            
         if supersedes:
             self.db.execute('UPDATE chunks SET superseded_by = ? WHERE id = ?', (chunk_id, supersedes))
             
@@ -190,14 +185,6 @@ def init_schema(db: sqlite3.Connection):
     if not has_vec:
         try:
             db.execute('CREATE VIRTUAL TABLE chunks_vec USING vec0(chunk_id TEXT PRIMARY KEY, embedding float[384])')
-        except sqlite3.OperationalError:
-            pass
-
-    # ColBERT virtual table (384 dimensions)
-    has_colbert = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chunks_colbert'").fetchone()
-    if not has_colbert:
-        try:
-            db.execute('CREATE VIRTUAL TABLE chunks_colbert USING vec0(chunk_id TEXT PRIMARY KEY, embedding float[384])')
         except sqlite3.OperationalError:
             pass
 

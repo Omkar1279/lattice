@@ -185,9 +185,8 @@ class CascadeRetrievalPipeline(RetrievalPipeline):
             if symbol_hits:
                 return packer.pack(symbol_hits, now_ts)
 
-        # Stage 2: Parallel BM25 + semantic + ColBERT + HippoRAG
+        # Stage 2: Parallel BM25 + semantic + HippoRAG
         embeddings_on = os.environ.get("LATTICE_EMBEDDINGS") == "on"
-        colbert_on = os.environ.get("LATTICE_COLBERT") == "on"
         hipporag_on = os.environ.get("LATTICE_HIPPORAG") == "on"
         source_filter = SOURCE_FILTERS.get(kind)
         
@@ -201,26 +200,26 @@ class CascadeRetrievalPipeline(RetrievalPipeline):
         if embeddings_on:
             semantic_hits = SemanticSearchStrategy(db).search(query, 10, path_scope, source_filter)
             
-        # ColBERT Search Strategy
-        colbert_hits = []
-        if colbert_on:
-            from lattice.retrieval.colbert import search_colbert
-            colbert_hits = search_colbert(db, query, 10)
-            
         # HippoRAG Search Strategy
         hippo_hits = []
         if hipporag_on:
             from lattice.retrieval.hipporag import hipporag_retrieve
             hippo_hits = hipporag_retrieve(db, query, 10)
             
-        ranked_lists = [bm25_hits, semantic_hits, colbert_hits, hippo_hits]
+        ranked_lists = [bm25_hits, semantic_hits, hippo_hits]
 
         # Stage 3: Fusion
         fused = self._fuser.fuse(ranked_lists, since_ts, source_filter, now_ts)
         
         # Stage 4: Cross-encoder rerank (top 50 -> top 10)
-        from lattice.retrieval.reranker import rerank
-        reranked = rerank(query, fused[:50], 10)
+        import os
+        if os.environ.get("LATTICE_RERANKER") == "on" and fused:
+            from lattice.retrieval.semantic import create_reranker
+            reranker = create_reranker()
+            reranked = reranker.rerank(query, fused[:50])
+            reranked = reranked[:10]
+        else:
+            reranked = fused[:10]
 
         # Stage 5: Pack to token budget
         return packer.pack(reranked, now_ts)
