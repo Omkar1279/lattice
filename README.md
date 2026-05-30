@@ -13,8 +13,8 @@
 
 ## 🚀 Key Features
 
-*   **Hybrid Retrieval Cascade**: Fuses Symbol Resolution, BM25 Keyword Search, and Vector Semantic Search in a multi-stage pipeline, reranking outputs with a high-performance cross-encoder.
-*   **AST-Based Chunking & Graph Indexing**: Uses `tree-sitter` (supporting Python, Rust, Go, JavaScript, TypeScript) to parse code semantics and build a dependency graph of imports, calls, exports, and class hierarchies.
+*   **Hybrid Retrieval Cascade**: Fuses Symbol Resolution, BM25 Keyword Search, Vector Semantic Search, and Graph-based Personalized PageRank (HippoRAG) in a multi-stage pipeline, reranking outputs with a high-performance cross-encoder.
+*   **AST-Based Chunking & Graph Indexing**: Uses `tree-sitter` (supporting Python, Rust, Go, JavaScript, TypeScript) to parse code semantics, resolve import paths, and build a dependency graph of imports, calls, exports, and class hierarchies, enabling instant local Personalized PageRank (PPR) traversal.
 *   **Automated Lifecycle Hooks**: Low-latency thin CLI clients communicate with a background daemon to intercept reads, auto-capture large tool results, and re-index modified files.
 *   **Redundant Read Interception**: Detects when Claude Code or shell scripts try to read large, already-indexed files. Blocks the read to conserve tokens, directing the agent to use fast, cached retrieval tools instead.
 *   **Freshness-Aware Scoring**: Decays note and code indices exponentially based on their source type (`code_index` is static, `human_note` decays slowly, `auto_capture` expires quickly), with full support for pinning critical files.

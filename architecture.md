@@ -95,10 +95,10 @@ CREATE TABLE edges (
     UNIQUE(source_chunk_id, target_chunk_id, kind)
 );
 
--- Virtual Table for ANN Vector Search (768 Dimensions)
+-- Virtual Table for ANN Vector Search (384 Dimensions)
 CREATE VIRTUAL TABLE chunks_vec USING vec0(
     chunk_id TEXT PRIMARY KEY,
-    embedding float[768]
+    embedding float[384]
 );
 ```
 
@@ -127,44 +127,48 @@ Tree-sitter queries parse specific language profiles (`graph.py`) to extract exp
 ---
 
 ## 4. The Retrieval Cascade Pipeline
-
+ 
 The retrieval pipeline uses a sophisticated multi-stage approach to find context while staying within Claude Code's token limits.
-
+ 
 ```mermaid
 graph TD
     Query[Query / Request] --> Stage1{Exact Symbol Match?}
     Stage1 -->|Yes| EarlyExit[Return Symbol Chunk + 1-Hop Callers]
-    Stage1 -->|No| Stage2[BM25 Search + Semantic Search]
+    Stage1 -->|No| Stage2[BM25 + Semantic + HippoRAG Search]
     Stage2 --> Stage3[Reciprocal Rank Fusion RRF]
     Stage3 --> Stage4[Freshness Decay Scorer]
     Stage4 --> Stage5[Cross-Encoder Reranker]
     Stage5 --> Stage6[Budget Slicing & Token Packing]
     Stage6 --> Out[Token-Optimized Chunks]
 ```
-
+ 
 ### Stage 1: Symbol Resolution (Early Exit)
 Heuristics detect code identifier patterns (e.g. CamelCase, snake_case, dot notation) in the query. If a matching symbol is found in the `symbols` index, the pipeline:
 1. Returns the chunk declaring the symbol.
 2. Performs a **1-hop graph expansion** to pull in up to 3 callers of that symbol from the `edges` table.
 3. Early-exits the retrieval cascade immediately, avoiding vector embedder latency.
-
+ 
 ### Stage 2: Parallel Search Strategies
-If no exact symbol matches, the pipeline runs two searches in parallel:
+If no exact symbol matches, the pipeline runs up to three search strategies in parallel:
 1.  **Keyword Search (BM25)**: SQLite FTS5 query tokenized with `OR` to maximize natural language recall.
-2.  **Semantic Search (ANN)**: Uses `FastEmbed` to generate a 768-dimensional embedding from the query, querying the `sqlite-vec` index for nearest neighbors.
-
+2.  **Semantic Search (ANN)**: Uses `FastEmbed` to generate a 384-dimensional embedding from the query, querying the `sqlite-vec` index for nearest neighbors.
+3.  **HippoRAG (PPR) Search**: Under `LATTICE_HIPPORAG=on`, uses Personalized PageRank (PPR) via power iteration. It:
+    *   Seeds a PPR teleport vector using the top BM25 keyword matches.
+    *   Iteratively propagates scores across AST dependency graph edges (`imports` and `calls`) resolved by `tree-sitter`.
+    *   Ranks and returns chunks by final structural connectivity, surfacing highly-relevant dependencies immediately in a single query turn.
+ 
 ### Stage 3 & 4: Fusion & Freshness Scoring
 The results are blended using **Reciprocal Rank Fusion (RRF)**:
 $$\text{RRF Score} = \sum_{m \in M} \frac{1}{k + \text{rank}_m(c)}$$
 Where $k = 60$ by default and $M$ represents search strategies.
-
+ 
 The fused score is subsequently multiplied by a **Freshness Decay Score**:
 $$\text{Freshness} = e^{-\frac{\text{age}}{\tau}} \times w$$
 *   **`code_index`**: $w=1.0$, $\tau=\infty$ (No decay over time)
 *   **`human_note`**: $w=0.9$, $\tau=180$ days half-life
 *   **`auto_capture`**: $w=0.6$, $\tau=30$ days half-life
 *   **Pinned Chunks**: Bypass decay entirely, returning a constant high score ($1e6$).
-
+ 
 ### Stage 5: Cross-Encoder Reranking
 The top 30 items from fusion are passed to `FastEmbed`'s cross-encoder reranker model (by default `mixedbread-ai/mxbai-rerank-xsmall-v2`) to compute high-accuracy relevance scores between the query and chunk bodies.
 
