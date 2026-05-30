@@ -228,7 +228,7 @@ d = yaml.safe_load(open('$ORACLE_FILE'))
 p = (d.get('pairs') or {}).get('$pair_key') or {}
 paraphrases = p.get('paraphrases')
 if isinstance(paraphrases, list) and len(paraphrases) > 0:
-    idx = ($run_num - 1) % len(paraphrases)
+    idx = ($BENCH_ORDER_SEED + $run_num) % len(paraphrases)
     prompt = paraphrases[idx]
 else:
     prompt = p.get('prompt')
