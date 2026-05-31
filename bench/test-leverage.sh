@@ -275,12 +275,19 @@ run_variant() {
   local plugin_args=()
   [ "$variant" = "with" ] && plugin_args=(--plugin-dir "$LATTICE_ROOT")
 
+  local final_prompt="$prompt"
+  if [ "$variant" = "without" ] && [ "${BENCH_ARM:-}" = "E" ]; then
+    final_prompt="$AIDER_MAP_TEXT
+
+$prompt"
+  fi
+
   local start exit_code=0
   start=$(date +%s)
   claude -p --model "$MODEL" --effort "$EFFORT" --output-format json \
     "${plugin_args[@]}" --dangerously-skip-permissions \
     --max-budget-usd "$MAX_BUDGET" --no-session-persistence \
-    "$prompt" > "$outfile" 2>>"$LOG_FILE" || exit_code=$?
+    "$final_prompt" > "$outfile" 2>>"$LOG_FILE" || exit_code=$?
 
   local dur=$(( $(date +%s) - start ))
   if [ $exit_code -ne 0 ] || [ ! -s "$outfile" ]; then
@@ -472,9 +479,19 @@ log "Lattice root: $LATTICE_ROOT"
 log "Fixture:      $FIXTURE_NAME  (oracle: $ORACLE_FILE)"
 log "Model:        $MODEL ($EFFORT)   judge: $BENCH_JUDGE_MODEL"
 log "Pairs:        $PAIRS  runs/pair: $BENCH_RUNS  order_seed: $BENCH_ORDER_SEED"
+log "Bench Arm:    ${BENCH_ARM:-C} (default: HippoRAG/with vs baseline/without unless Arm E)"
 log "Results:      $RESULTS_DIR"
 
 ensure_repo
+
+AIDER_MAP_TEXT=""
+if [ "${BENCH_ARM:-}" = "E" ]; then
+  log "Pre-generating Aider Repo-Map for Arm E..."
+  prep_lattice_tree
+  AIDER_MAP_TEXT=$(PYTHONPATH="$LATTICE_ROOT" python3 "$LATTICE_ROOT/bench/lib/generate_repomap.py" "$WORK_REPO/.lattice" 40)
+  clear_lattice
+  log "Aider Repo-Map pre-generated successfully."
+fi
 
 for p in $PAIRS; do
   case "$p" in

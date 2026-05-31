@@ -14,10 +14,10 @@
 
 Every benchmark has been cleanly ported and executed on the Python codebase. R@K results are evaluated against the fastapi fixture (`fastapi@0.115.0`).
 
-| Bench | Metric | Result | vs Aider's repo-map |
+| Bench | Metric | Result | vs Serena (TS) |
 |---|---|---|---|
-| **1. Token Overhead** | input tokens / turn | **630** | Aider: **2,048 - 4,096+** (Lattice: 3.2x-6.5x schema efficiency) |
-| | tokens saved per 50-turn session | **70,000 - 170,000+** | Aider: Eats prompt budget continuously with push model |
+| **1. Tool-Schema Overhead** | input tokens / turn | **630** | Serena: **8,177** (Python: 13x savings) |
+| | tokens saved per 50-turn session | **377,350** | Serena: **344,900** |
 | **2. Retrieval Sanity Check** | overall R@5 / R@10 / MRR | **0.75 / 0.80 / 0.67** | n/a |
 | | symbol R@5 / MRR | **0.90 / 0.90** (PASS ≥ 0.9) | n/a |
 | | behavioural R@5 / R@10 | **0.60 / 0.70** | n/a |
@@ -28,16 +28,16 @@ Every benchmark has been cleanly ported and executed on the Python codebase. R@K
 
 ---
 
-## Bench 1 — Token Overhead vs. Push-Based Maps
+## Bench 1 — Tool-Schema Token Overhead
 
-**Headline**: `lattice-python` exposes only **630 tokens** of MCP tool schema per turn, whereas Aider's repo-map injects a static **2,048 to 4,096+ tokens** map of the repository into the prompt context on *every single turn*. By using an on-demand pull model via MCP tools instead of continuous push-based prompt injection, Lattice saves substantial context tokens in active development sessions!
+**Headline**: `lattice-python` exposes only **630 tokens** of MCP tool schema per turn — **13× less than Serena**'s 8,177 tokens across its 28-tool surface. Across a standard 50-turn session, this saves **377,350 input tokens** on tool schemas alone!
 
 ### Results Summary
 
-| Server / Strategy | Tools | Total tokens | vs lattice (per turn) | Source / Method |
+| Server | Tools | Total tokens | vs lattice (per turn) | Source |
 |---|---:|---:|---:|---|
 | **lattice (python)** | **3** | **630** | — | live MCP stdio spawn |
-| Aider's repo-map | — | 2,048+ | +1,418+ | default continuous prompt-injected map |
+| Serena (TS) | 28 | 8,177 | +7,547 | live MCP stdio spawn |
 | Anthropic Memory Tool | 1 | 426 | +196 | hand-authored from docs |
 | mem0 | — | — | skipped | missing env: `OPENAI_API_KEY` |
 | Cipher | — | — | skipped | always skipped (unverifiable install) |
