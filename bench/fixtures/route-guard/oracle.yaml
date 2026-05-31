@@ -1,0 +1,104 @@
+# route-guard fixture — per-pair prompts and grading oracles.
+#
+# Schema is identical to bench/fixtures/fastapi/oracle.yaml — see that file
+# for the full documentation of oracle types (objective, narrative, storage).
+
+fixture: route-guard
+index_dirs: ["src"]
+
+pairs:
+
+  p1_s1:
+    prompt: >-
+      In this codebase, find the file that contains the core security/intercept routing logic that decides whether an incoming user prompt or command should be classified and routed to a specific budget. Give the file path relative to the repo root and the main exported function name.
+    paraphrases:
+      - >-
+        In this codebase, find the file that contains the core security/intercept routing logic that decides whether an incoming user prompt or command should be classified and routed to a specific budget. Give the file path relative to the repo root and the main exported function name.
+      - >-
+        Identify the relative file path and primary exported function responsible for processing new user prompts and classifying them into budget routes in this repository.
+      - >-
+        Locate the module that handles incoming user prompt classification, turn resetting, and budget directive injection. Provide its root-relative path and exported function.
+    oracle:
+      type: objective
+      must_contain_paths: ["src/router.js"]
+      must_contain_terms: ["processPrompt"]
+
+  p1_s2:
+    prompt: >-
+      In an earlier session you found the file containing the core security/intercept routing logic. What was the file path, and what is the main exported function name? Be brief.
+    paraphrases:
+      - >-
+        In an earlier session you found the file containing the core security/intercept routing logic. What was the file path, and what is the main exported function name? Be brief.
+      - >-
+        Recall the prompt intercept routing function and its relative path that you identified in our previous session. Give the path and function name briefly.
+      - >-
+        You previously located the prompt processing and routing file. What was the exact function name and its root-relative file path? Keep it concise.
+    oracle:
+      type: objective
+      must_contain_paths: ["src/router.js"]
+      must_contain_terms: ["processPrompt"]
+
+  p2_corpusscale:
+    prompt: >-
+      In this codebase, find the function responsible for evaluating subagent spawn tool calls based on route budgets and spawn limits (i.e. implements Rule 3 to 7 checks for allow/block decisions). Give the file path and the function name.
+    paraphrases:
+      - >-
+        In this codebase, find the function responsible for evaluating subagent spawn tool calls based on route budgets and spawn limits (i.e. implements Rule 3 to 7 checks for allow/block decisions). Give the file path and the function name.
+      - >-
+        Search this project for the function that validates if spawning a subagent is allowed within the active budget and cap limits. Provide the function name and its file path.
+      - >-
+        Identify the relative file path and function that evaluates subagent spawn requests against route permissions, spawn counts, and token budgets.
+    oracle:
+      type: objective
+      must_contain_paths: ["src/budget.js"]
+      must_contain_terms: ["evaluateSpawn"]
+
+  p3_graphnav:
+    prompt: >-
+      In this codebase, list 3 distinct files (other than its own definition file) that import or use the atomic state updater function `withState`. Give exact file paths relative to the repo root.
+    paraphrases:
+      - >-
+        In this codebase, list 3 distinct files (other than its own definition file) that import or use the atomic state updater function `withState`. Give exact file paths relative to the repo root.
+      - >-
+        Identify three separate files in this project (excluding the state module itself) that import or utilize the `withState` atomic update wrapper. State their exact root-relative file paths.
+      - >-
+        Identify 3 different files in this codebase (not including where it is defined) that make use of or import `withState`. Return their exact relative paths.
+    oracle:
+      type: narrative
+      judge_question: >-
+        Did the answer list 3 DISTINCT file paths that are NOT `src/state.js`?
+        Each path should look like a real path in this repo (under `src/` or `hooks/`). Answer YES only if all 3 are present, distinct, and plausible.
+      must_contain_terms: ["withState"]
+
+  p4_s1:
+    prompt: >-
+      I want you to remember this decision for future sessions: "We chose file-based atomic locking in `state.js` over a simple in-memory flag because it guarantees safety across concurrent Node.js processes calling pre-tool-use hooks simultaneously." Persist this so a future session can recall it. Confirm in one sentence that you have persisted it and describe HOW you persisted it.
+    paraphrases:
+      - >-
+        I want you to remember this decision for future sessions: "We chose file-based atomic locking in `state.js` over a simple in-memory flag because it guarantees safety across concurrent Node.js processes calling pre-tool-use hooks simultaneously." Persist this so a future session can recall it. Confirm in one sentence that you have persisted it and describe HOW you persisted it.
+      - >-
+        Please save this architectural decision: "We chose file-based atomic locking in `state.js` over a simple in-memory flag because it guarantees safety across concurrent Node.js processes calling pre-tool-use hooks simultaneously." Ensure this choice is persisted so a future session can retrieve it. Write a one-sentence confirmation explaining the persistence method.
+      - >-
+        Store the following decision for our upcoming sessions: "We chose file-based atomic locking in `state.js` over a simple in-memory flag because it guarantees safety across concurrent Node.js processes calling pre-tool-use hooks simultaneously." Make sure this is saved. Confirm with one sentence how you persisted it.
+    oracle:
+      type: narrative
+      judge_question: >-
+        Did the model confirm it persisted the decision AND describe a concrete persistence mechanism (e.g. calling a `write` tool, writing to a notes file, lattice.write, MCP tool call)? Answer YES only if both confirmation and mechanism are stated.
+
+  p4_s2:
+    prompt: >-
+      In an earlier session I asked you to remember a decision about a locking mechanism in `state.js`. What was the decision, and what was the stated reason?
+    paraphrases:
+      - >-
+        In an earlier session I asked you to remember a decision about a locking mechanism in `state.js`. What was the decision, and what was the stated reason?
+      - >-
+        Retrieve the decision concerning the locking mechanism in `state.js` that we recorded in a prior session. What was decided, and what reasons were given?
+      - >-
+        We previously registered an architectural decision about the locking mechanism in `state.js`. Recall that decision and explain the reasoning behind it.
+    oracle:
+      type: objective
+      must_contain_terms:
+        - "state.js"
+      must_contain_any_of:
+        - ["locking", "lock"]
+        - ["atomic", "file-based", "concurrent"]
